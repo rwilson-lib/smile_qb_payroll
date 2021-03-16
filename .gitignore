@@ -1,0 +1,13 @@
+
+# python 
+__pycache__
+
+# vim
+tags
+.vim
+
+# MacOS
+.DS_Store
+
+
+*.sqlite3
