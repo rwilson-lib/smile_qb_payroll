@@ -1,0 +1,14 @@
+<table>
+  <tr>
+    <th>Item</th>
+    <th>Amount</th>
+    <th>Currency</th>
+  </tr>
+{% for extra in employee_extras %}
+  <tr>
+    <td>{{ extra.extra.extra }}</td>
+    <td>{{ extra.amount}}</td>
+    <td>{{ extra.amount_currency}}</td>
+  </tr>
+{% endfor %}
+</table>

@@ -1,0 +1,23 @@
+
+<table>
+  <tr>
+    <td>Status</td>
+    <td>Name</td>
+    <td>Item</td>
+    <td>Amount Owe</td>
+    <td>Amount Deducted</td>
+    <td>Balance</td>
+    <td>Completed</td>
+  </tr>
+{% for deduction in employee_deductions%}
+  <tr>
+   <td>{{ deduction.plan.get_status_display }}</td>
+   <td>{{ deduction.plan.name }}</td>
+   <td>{{ deduction.plan.deductable.item }}</td>
+   <td>{{ deduction.plan.deductable.amount }}</td>
+   <td>{{ deduction.plan.total_paid }}</td>
+   <td>{{ deduction.plan.deductable.balance }}</td>
+   <td>{{ deduction.plan.deductable.completed }}</td>
+  </tr>
+{% endfor %}
+</table>

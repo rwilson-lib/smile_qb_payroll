@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Payroll List{% endblock %}
+{% block content %}
+<table>
+  <tr>
+    <th>No.</th>
+    <th>Created On</th>
+    <th>Tax Revision</th>
+    <th>Rate</th>
+    <th>Count</th>
+    <th>Status</th>
+  </tr>
+  {% for items in payroll_items %}
+   <tr>
+     <td><a href={% url 'payroll_detail' items.id %}>{{ items.id }}</a></td>
+     <td>{{ items.date }}</td>
+     <td>{{ items.tax_revision }}</td>
+     <td>{{ items.rate }}</td>
+     <td>{{ items.total_amount }}</td>
+     <td>{{ items.get_status_display }}</td>
+   </tr>
+  {% endfor %}
+</table>
+{% endblock %}

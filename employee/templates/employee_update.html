@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Create Employee{% endblock %}
+{% block content %}
+    <form action="{% url 'employee_create' %}" method="POST">
+        {% csrf_token %}
+        <input type="hidden" id="Url" data-url="{% url 'get_country_states' 0 %}" />
+        <fieldset id="employee">
+          <legend>Personal</legend>
+          {{ employee_form.as_p }}
+        </fieldset>
+        <fieldset id="address">
+          <legend>Address</legend>
+            {{ address_formset.management_form }}
+            {{ address_formset.as_p }}
+          <a href="#" id="add-address-line">Add Another Address</a>
+        </fieldset>
+        <fieldset id="employee-position">
+          <legend>Position</legend>
+          {{ employee_position_form.as_p }}
+        </fieldset>
+        <input type="submit" value="Submit">
+
+    </form>
+{% endblock %}
+{% load static %}
+{% block scripts %}
+<script src="{% static 'js/script.js' %}" type="text/javascript"></script>
+{% endblock %}

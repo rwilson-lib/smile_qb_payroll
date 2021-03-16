@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %} From Template{% endblock %}
+{% block head %}
+<style type="text/css">
+#table{
+    display: table;
+}
+.tr{
+    display: table-row;
+}
+.td{
+    display: table-cell; 
+}
+
+.td input {
+  border-top: 0; 
+  border-left: 0; 
+}
+
+#id_form-row-0 input {
+  border-top: 1px solid; 
+}
+.line-num {
+  cursor: pointer;
+}
+
+</style>
+{% endblock %}
+{% block content %}
+<form id='id_payroll-create-form' method='POST' action="{% url 'payroll_create' %}">
+    {% csrf_token %}
+    {{ payroll_item_formset.management_form }}
+    <div id='id_payroll-section'>
+      {% for field in payroll_form %}
+        {{ field.label_tag }} {{ field }}
+        {% if field.name == 'rate' %}
+          <a href="#">New Rate</a>
+        {% endif %}
+      {% endfor %}
+      <input type="submit" value="Create" disabled="disabled" id='id_submit-btn'>
+    </div>
+    <div class='table'>
+      <div class='tr'>
+        <label class='td'>No.</label>
+        <label class='td'></label>
+        <label class='td'>Emp. Id</label>
+        <label class='td'>SSN</label>
+        <label class='td'>TIN</label>
+        <label class='td'>First Name</label>
+        <label class='td'>Middle Name</label>
+        <label class='td'>Last Name</label>
+        <label class='td'>Gender</label>
+        <label class='td'>Job Title</label>
+        <label class='td'>Department</label>
+        <label class='td'>Salary</label>
+        <label class='td'>Currency</label>
+        <label class='td'>Income Type</label>
+      </div>
+      {% for form in payroll_item_formset %}
+        <div class='tr' id="id_form-row-{{ forloop.counter0 }}">
+          <div class='td'>
+            <span class='line-num' id='id_line-num-{{ forloop.counter0 }}'>{{ forloop.counter }}</span>
+          </div>
+          {% for item in form %}
+            <div class='td'>
+              {{ item }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    </div>
+  </form>
+{% endblock %}
+{% block scripts %}
+<script type="text/javascript">
+  'use strict';
+  let employee_id_fields = $('.employee-id-number');
+  let payrollCreateButton = $('#id_payroll-create-form');
+  let submitButton = $('#id_submit-btn');
+  let payrollSectionInputs = $('#id_payroll-section input[required], select[required]');
+  let jsonData = null;
+  let hasData = false;
+  let payrollEmpItemCache = {}
+  let lineNums = $('.line-num');
+  
+  submitButton.fadeOut('slow');
+
+  lineNums.click((event) => {
+    let nodeId = event.target.parentNode.parentNode.id;
+    let section = nodeId.split('-');
+    let empId = $('#id_form-' + section[section.length - 1] + '-employee_id_number');
+    if (empId.val()){
+      let answer = confirm("Are you sure you want to remove this");
+      if (!answer)
+          return;
+    }
+    delete payrollEmpItemCache[empId.val()];
+    let inputRow = $('#' + nodeId + ' ' + 'input');
+    inputRow.each((index, item) => {
+        item.value = ''
+    });
+  });
+  payrollSectionInputs.on('blur', (event) => {
+        console.log(event.target.value)
+  });
+
+  employee_id_fields.autocomplete({
+      autoFocus:true,
+      source: (request, response) => {
+        $.ajax({
+            method:'GET',
+            url: payrollCreateButton.attr('action') + '?emp_id=' + request.term,
+            dataType: "json",
+            success: (data) => {
+                jsonData = $.parseJSON(data);
+                response($.map(jsonData, (item) => {
+                    let full_name = "";
+                    if (item.employee__middle_name)
+                      full_name=`${item.employee__first_name} ${item.employee__middle_name} ${item.employee__last_name}`
+                    else
+                      full_name = `${item.employee__first_name} ${item.employee__last_name}`
+                    return {
+                        label: full_name,
+                        value: item.employee__employee_id_number
+                    };
+                })); //response
+            },//success
+        }); //ajax
+      }, //source
+      select: (event, ui) => {
+          let id = ui.item.value;
+
+          if (id in payrollEmpItemCache){
+            console.log('Employee already added')
+            event.preventDefault();
+            return;
+          }
+
+          
+          let nodeId = event.target.parentNode.parentNode.id;
+          let inputRow = $('#' + nodeId + ' ' + 'input')
+
+          let currentEmpData = jsonData.find( (data) => {
+              if (data.employee__employee_id_number === id)
+                return data;
+          });
+          inputRow.each( (index, item) => {
+            let sections = item.name.split("-");
+            if (sections[sections.length - 1] == 'employee_id_number')
+               item.value = currentEmpData.employee__employee_id_number;
+            else if (sections[sections.length - 1] == 'social_security_number')
+               item.value = currentEmpData.employee__social_security_number;
+            else if (sections[sections.length - 1] == 'tin')
+               item.value = currentEmpData.employee__tin;
+            else if (sections[sections.length - 1] == 'first_name')
+               item.value = currentEmpData.employee__first_name;
+            else if (sections[sections.length - 1] == 'middle_name')
+               item.value = currentEmpData.employee__middle_name;
+            else if (sections[sections.length - 1] == 'last_name')
+               item.value = currentEmpData.employee__last_name;
+            else if (sections[sections.length - 1] == 'gender')
+               item.value = currentEmpData.employee__gender;
+            else if (sections[sections.length - 1] == 'job_title')
+               item.value = currentEmpData.position__position;
+            else if (sections[sections.length - 1] == 'department')
+               item.value = currentEmpData.position__department__department;
+            else if (sections[sections.length - 1] == 'salary')
+               item.value = currentEmpData.negotiated_salary;
+            else if (sections[sections.length - 1] == 'currency')
+               item.value = currentEmpData.negotiated_salary_currency;
+            else if (sections[sections.length - 1] == 'pay_period')
+               item.value = currentEmpData.pay_period
+            else if (sections[sections.length - 1] == 'employee_id'){
+               payrollEmpItemCache[id] = currentEmpData.id
+               item.value = currentEmpData.id
+               hasData = true;
+            }
+          });
+      }, // select
+      change : (event, ui) => {
+          if ( hasData ){
+            submitButton.fadeIn('slow');
+            if (submitButton.attr('disabled') == 'disabled')
+                submitButton.removeAttr('disabled')
+          }
+      }, // change
+  }); // autocomplete
+  
+</script>
+{% endblock %}
