@@ -1,15 +1,12 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
-from django.core.exceptions import ValidationError
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-
-
-from djmoney.money import Money
+from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import MoneyField
+from djmoney.money import Money
 
-from country.models import Country
-from country.models import State
+from country.models import Country, State
 from payroll.income import PayPeriod
 from utils import create_money
 
@@ -63,7 +60,6 @@ class Employee(models.Model):
     @property
     def total_owed(self):
         total_owed = self.deductable_set.all()
-        pass
 
     def clean(self):
         errors = {}
@@ -146,10 +142,10 @@ class EmployeePosition(models.Model):
     position = models.ForeignKey(Job, on_delete=models.CASCADE)
     grade = models.CharField(max_length=2, blank=True, null=True)
     negotiated_salary = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default=Money("0.00", "USD"),
-        default_currency="USD",
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    pay_period = models.PositiveIntegerField(
+        choices=PayPeriod.choices, default=PayPeriod.MONTHLY
     )
     state = models.IntegerField(choices=State.choices, default=State.CURRENT)
     position_date = models.DateField(default=timezone.now)
@@ -169,14 +165,18 @@ class EmployeePosition(models.Model):
     def clean(self):
         errors = {}
         minimum_wage = create_money(1.00, self.negotiated_salary_currency)
-        if self.negotiated_salary < minimum_wage:
+
+        if not self.negotiated_salary:
+            self.negotiated_salary = self.position.base_salary
+            self.negotiated_salary_currency = self.position.base_salary_currency
+            self.pay_period = self.position.pay_period
+
+        if not self.grade:
+            self.grade = self.position.grade
+
+        elif self.negotiated_salary < minimum_wage:
             errors["negotiated_salary"] = _(
                 f"salary cannot less than MinimumWage {minimum_wage}"
-            )
-
-        if self.pay_period != self.position.pay_period:
-            errors["pay_period"] = _(
-                f"Income Type mismatch position type {self.position.get_pay_period_display()}"
             )
 
         if errors:
