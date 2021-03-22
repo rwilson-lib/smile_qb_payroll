@@ -7,8 +7,10 @@ from djmoney.models.fields import MoneyField
 from djmoney.money import Money
 
 from country.models import Country, State
-from payroll.income import PayPeriod
 from utils import create_money
+
+from payroll.income import Income
+from payroll.income import PayPeriod
 
 
 class Employee(models.Model):
@@ -157,7 +159,8 @@ class EmployeePosition(models.Model):
 
     @property
     def total_earnings(self):
-        return self.other_earnings + self.negotiated_salary
+        total = self.other_earnings + self.negotiated_salary
+        return Income(PayPeriod(self.pay_period), total)
 
     class Meta:
         get_latest_by = ["position_date"]
