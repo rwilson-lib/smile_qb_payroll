@@ -2,6 +2,8 @@ from collections import namedtuple
 from djmoney.money import Money
 
 from payroll.income import PayPeriod
+from payroll.income import Income
+
 import math
 
 
@@ -14,37 +16,35 @@ def test_tax(income, revision, rate):
     tax = namedtuple("Tax", ["revision", "match_clause", "pay_period", "tax"])
 
     rev_currency = revision.currency
-    income_currency = income.currency.code
-    pay_period = revision.pay_period
+    pay_period = PayPeriod(revision.pay_period)
 
-    if rev_currency != income_currency:
-        if not rate:
+    if revision.currency != income.money.currency.code:
+        if rate is None:
             raise TypeError(
-                f"No ExchaneRate found Tax Currency:{rev_currency} Income Currency:{income_currency}"
+                f"No ExchaneRate found Tax Currency:{rev_currency} Income Currency:{income.money.currency}"
             )
-        income = rate.exchange(income)
+        income.money = rate.exchange(income.money)
 
-    if pay_period == PayPeriod.ANNUALLY:
-        income = income * 12
-
-    elif pay_period == PayPeriod.QUARTER:
-        income = income * 6
-
-    elif pay_period == PayPeriod.MONTHLY:
-        income = income * 1
-
+    income = income.convert_to(pay_period)
     for clause in revision.clause_set.all():
         if clause.end is None:
-            if math.floor(income.amount) > clause.start:
+            if math.floor(income.money.amount) > clause.start:
                 t = calc_tax(
-                    income, clause.excess_over, clause.percent, clause.addition
+                    income.money, clause.excess_over, clause.percent, clause.addition
                 )
-                return tax(revision.version, clause.line_num, pay_period, t)
+                i = Income(pay_period, t)
+                return tax(revision.version, clause.line_num, pay_period, i)
         else:
-            if math.floor(income.amount) in range(int(clause.start), int(clause.end)):
+            if math.floor(income.money.amount) in range(
+                int(clause.start), int(clause.end)
+            ):
                 t = calc_tax(
-                    income, clause.excess_over, clause.percent, clause.addition
+                    income.money,
+                    clause.excess_over,
+                    clause.percent,
+                    clause.addition,
                 )
-                return tax(revision.version, clause.line_num, pay_period, t)
+                i = Income(pay_period, t)
+                return tax(revision.version, clause.line_num, pay_period, i)
 
     raise ValueError(f"tax revision ID:{revision.id} have no matching tax clause")
