@@ -2,6 +2,7 @@
 {% block title  %}Payroll Detail{% endblock %}
 {% block content %}
 {{ payroll.date }}
+{{ payroll.get_pay_period_display }}
 {{ payroll.tax_revision }}
 {{ payroll.rate }}
 {{ payroll.get_status_display }}
@@ -41,7 +42,7 @@
       <td>{{ items.employee.position.position }}</td>
       <td>{{ items.employee.position.department }}</td>
       <td>{{ items.employee.grade }}</td>
-      <td>{{ items.employee.total_earnings }}</td>
+      <td>{{ items.earnings }}</td>
       <td>
         <a href={% url 'payroll_extra' items.id %}>{{ items.extra_income }}</a>
       </td>

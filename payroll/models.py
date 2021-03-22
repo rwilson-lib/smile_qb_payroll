@@ -14,11 +14,19 @@ from employee.models import Employee
 from employee.models import EmployeePosition
 from employee.models import Department
 from payroll.income import PayPeriod
+from payroll.income import Income
 from utils import create_money
 from utils import total_amount
 
 from tax.tax_calc import test_tax
 from collections import namedtuple
+
+
+class IncomeType(models.IntegerChoices):
+    SALARY = 0
+    NET = 1
+    GROSS = 2
+    EXTRA = 3
 
 
 class ExchangeRate(models.Model):
@@ -158,8 +166,11 @@ class DeductionPlan(models.Model):
         SKIP_NEXT_PAID = 3
         COMPLETED = 4
 
-    name = models.CharField(max_length=25)
     deductable = models.ForeignKey(Deductable, on_delete=models.CASCADE)
+    name = models.CharField(max_length=25)
+    deduct_from = models.IntegerField(
+        choices=IncomeType.choices, default=IncomeType.NET
+    )
     percent = models.DecimalField(max_digits=5, decimal_places=2)
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVE)
 
@@ -236,6 +247,7 @@ class Contribution(models.Model):
 
 
 class PayrollEmployee(models.Model):
+
     payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE)
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     gross_income = MoneyField(
@@ -305,7 +317,7 @@ class PayrollEmployee(models.Model):
 
         for emp_tax in emp_taxes:
             if emp_tax.tax.taken_from == emp_tax.tax.TakenFrom.SALARY:
-                salary = self._earnings()
+                salary = self._earnings().money
                 value = percental_or_fixed(emp_tax.tax, salary)
                 if emp_tax.tax.pay_by == emp_tax.tax.PayBy.EMPLOYEE:
                     taxes["employee"].append(value)
@@ -314,28 +326,43 @@ class PayrollEmployee(models.Model):
             elif emp_tax.tax.taken_from == emp_tax.tax.TakenFrom.GROSS:
                 gross = self._gross_income()
                 value = percental_or_fixed(emp_tax.tax, gross)
-                print(value)
             elif emp_tax.tax.taken_from == emp_tax.tax.TakenFrom.NET:
                 net = self._net_income()
                 value = percental_or_fixed(emp_tax.tax, net)
-                print(value)
             elif emp_tax.tax.taken_from == emp_tax.tax.TakenFrom.TAKE_HOME:
                 take_home = self._take_home()
                 value = percental_or_fixed(emp_tax.tax, take_home)
-                print(value)
             elif emp_tax.tax.taken_from == emp_tax.tax.TakenFrom.EXTRA:
                 extras = self._extra_income()
                 value = percental_or_fixed(emp_tax.tax, extras)
-                print(value)
 
         return taxes
 
     def _earnings(self):
-        return self.employee.total_earnings
+        return self.employee.total_earnings.convert_to(
+            PayPeriod(self.payroll.pay_period)
+        )
 
     def _extra_income(self):
         sum = self.payrollextra_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
-        return create_money(sum, self.earnings.currency)
+        return Income(
+            PayPeriod(self.payroll.pay_period),
+            create_money(sum, self.earnings.currency),
+        )
+
+    def _select_income_function(self, income, *args, **kwargs):
+        if not isinstance(income, IncomeType):
+            raise TypeError(f"income must be of type {IncomeType}")
+        elif income == IncomeType.SALARY:
+            return self._earnings(*args, **kwargs)
+        elif income == IncomeType.NET:
+            return self._net_income(*args, **kwargs)
+        elif income == IncomeType.GROSS:
+            return self._gross_income(*args, **kwargs)
+        elif income == IncomeType.EXTRA:
+            return self._extra_income(*args, **kwargs)
+
+        raise NotImplementedError()
 
     def _calc_deduction(self):
         active_plans = DeductionPlan.objects.filter(
@@ -345,7 +372,9 @@ class PayrollEmployee(models.Model):
         )
         deductions = []
         for active_plan in active_plans:
-            amount = active_plan.deduct(self._net_income())
+            amount = active_plan.deduct(
+                self._select_income_function(IncomeType(active_plan.deduct_from)).money
+            )
             if amount:
                 payroll_deduction = PayrollDeduction(
                     payroll_employee=self, plan=active_plan, amount=amount
@@ -355,23 +384,30 @@ class PayrollEmployee(models.Model):
 
     def _total_deductions(self):
         sum = self.payrolldeduction_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
-        return create_money(sum, self.earnings.currency)
+        return Income(
+            PayPeriod(self.payroll.pay_period),
+            create_money(sum, self.earnings.currency),
+        )
 
     def _gross_income(self):
         total = self.extra_income + self.earnings
-        return total
+        return Income(PayPeriod(self.payroll.pay_period), total)
 
     def _income_tax(self):
         rev = self.payroll.tax_revision
         rate = None
         if rev.currency != self.earnings.currency.code:
             rate = self.payroll.rate
-        tax = test_tax(self.gross_income, rev, rate)
+
+        income = Income(PayPeriod(self.payroll.pay_period), self.gross_income)
+        tax = test_tax(income, rev, rate)
+        income_tax = tax.tax.convert_to(PayPeriod(self.payroll.pay_period))
 
         if rate:
-            return rate.exchange(tax.tax) / 12
+            income_tax.money = rate.exchange(income_tax.money)
+            return income_tax
 
-        return tax.tax
+        return income_tax
 
     def _net_income(self):
         other_emp_taxes = self.calc_taxes["employee"]
@@ -384,24 +420,24 @@ class PayrollEmployee(models.Model):
         return take_home
 
     def update_calc_props(self):
-        self.earnings = self._earnings()
-        self.net_income = self._net_income()
-        self.gross_income = self._gross_income()
-        self.income_tax = self._income_tax()
-        self.extra_income = self._extra_income()
-        self.total_deductions = self._total_deductions()
-        self.take_home = self._take_home()
+        self.earnings = self._earnings().money
+        self.net_income = self._net_income().money
+        self.gross_income = self._gross_income().money
+        self.income_tax = self._income_tax().money
+        self.extra_income = self._extra_income().money
+        self.total_deductions = self._total_deductions().money
+        self.take_home = self._take_home().money
         self.save()
 
     @classmethod
     def pre_create(cls, sender, instance, *args, **kwargs):
-        instance.earnings = instance._earnings()
-        instance.net_income = instance._net_income()
-        instance.gross_income = instance._gross_income()
-        instance.income_tax = instance._income_tax()
-        instance.extra_income = instance._extra_income()
-        instance.total_deductions = instance._total_deductions()
-        instance.take_home = instance._take_home()
+        instance.earnings = instance._earnings().money
+        instance.net_income = instance._net_income().money
+        instance.gross_income = instance._gross_income().money
+        instance.income_tax = instance._income_tax().money
+        instance.extra_income = instance._extra_income().money
+        instance.total_deductions = instance._total_deductions().money
+        instance.take_home = instance._take_home().money
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
