@@ -1,4 +1,3 @@
-
 """smile_qb_payroll URL Configuration
 
 The `urlpatterns` list routes URLs to views. For more information please see:
@@ -19,5 +18,5 @@ from . import views
 
 urlpatterns = [
     # path('', views.home, name='country_home'),
-    path('<int:id>/states', views.get_country_states, name='get_country_states'),
+    path("<int:id>/states", views.get_country_states, name="get_country_states"),
 ]
