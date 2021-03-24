@@ -2,15 +2,12 @@ from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from djmoney.money import Money
 from djmoney.models.fields import MoneyField
 from djmoney.models.fields import CurrencyField
 from country.models import Country
 
-from payroll.income import PayPeriod
+from payroll.income import PayPeriod, IncomeType
 from utils import create_money
-
-from collections import namedtuple
 
 
 class Revision(models.Model):
@@ -34,20 +31,11 @@ class Tax(models.Model):
         EMPLOYEE = 0
         EMPLOYER = 1
 
-    class TakenFrom(models.IntegerChoices):
-        SALARY = 0
-        GROSS = 1
-        NET = 2
-        TAKE_HOME = 3
-        EXTRA = 4
-        DEDUCTION = 5
-        OTHER = 6
-
     revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     tax = models.CharField(max_length=25)
     type = models.PositiveIntegerField(choices=TaxType.choices)
     pay_by = models.PositiveIntegerField(choices=PayBy.choices)
-    taken_from = models.PositiveIntegerField(choices=TakenFrom.choices)
+    taken_from = models.PositiveIntegerField(choices=IncomeType.choices)
     percental = models.DecimalField(max_digits=19, decimal_places=4)
     percental = models.DecimalField(
         max_digits=5, decimal_places=2, blank=True, null=True
@@ -67,11 +55,10 @@ class Tax(models.Model):
 
         if self.fixed_deduction_amount:
             if self.percental:
-                errors["fixed_deduction_amount"] = _(f"cannot set both")
-
+                errors["fixed_deduction_amount"] = _("cannot set both")
         if self.percental:
             if self.fixed_deduction_amount:
-                errors["percental"] = _(f"cannot set both")
+                errors["percental"] = _("cannot set both")
 
         if errors:
             raise ValidationError(errors)
