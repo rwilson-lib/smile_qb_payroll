@@ -10,6 +10,17 @@ from payroll.income import PayPeriod, IncomeType
 from utils import create_money
 
 
+class TaxType(models.IntegerChoices):
+    INCOME = 0
+    SOCIAL_SECURITY = 1
+    OTHER = 2
+
+
+class PayBy(models.IntegerChoices):
+    EMPLOYEE = 0
+    EMPLOYER = 1
+
+
 class Revision(models.Model):
     version = models.CharField(max_length=10)
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
@@ -21,15 +32,7 @@ class Revision(models.Model):
         return self.version
 
 
-class Tax(models.Model):
-    class TaxType(models.IntegerChoices):
-        INCOME = 0
-        SOCIAL_SECURITY = 1
-        OTHER = 2
-
-    class PayBy(models.IntegerChoices):
-        EMPLOYEE = 0
-        EMPLOYER = 1
+class TaxContribution(models.Model):
 
     revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     tax = models.CharField(max_length=25)
