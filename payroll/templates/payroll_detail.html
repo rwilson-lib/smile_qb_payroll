@@ -49,7 +49,7 @@
       <td>{{ items.gross_income }}</td>
       <td>{{ items.income_tax }}</td>
       <td>{{ items.net_income }}</td>
-      <td><a href={% url 'payroll_deduction' items.id %}>{{ items.total_deductions }}</a></td>
+      <td><a href={% url 'payroll_deduction' items.id %}>{{ items.deductions }}</a></td>
       <td>{{ items.take_home }}</td>
     </tr>
   {% endfor %}

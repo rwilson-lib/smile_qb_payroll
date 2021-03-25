@@ -1,5 +1,6 @@
 from decimal import Decimal
 from functools import reduce
+
 from djmoney.money import Money
 
 
