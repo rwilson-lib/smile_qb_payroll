@@ -1,0 +1,54 @@
+{
+    "configurations": {
+        "django": {
+            "adapter": "debugpy",
+            "configuration": {
+                "name": "django",
+                "type": "python",
+                "request": "launch",
+                "cwd": "${workspaceRoot}",
+                "stopOnEntry": true,
+                "console": "externalTerminal",
+                "debugOptions": [],
+                "program": "${workspaceRoot}/manage.py",
+                "args": [
+                    "runserver",
+                    "localhost:8000"
+                ],
+                "django": true,
+                "logToFile": true,
+                "python": "~/.venvs/password-generator/bin/python3",
+                "env": {
+                    "DJANGO_SETTINGS_MODULE": "password_generator.settings"
+                }
+            }
+        },
+        "launch-js": {
+            "adapter": "chrome",
+            "configuration": {
+                "program": "${workspaceRoot}/manage.py runserver",
+                "request": "launch",
+                "url": "http://localhost:8000/",
+                "webRoot": "${workspaceRoot}/",
+                "breakpoints": {
+                    "exception": {
+                        "caught": "",
+                        "uncaught": "Y"
+                    }
+                }
+            }
+        },
+        "attached": {
+            "adapter": "debugpy",
+            "configuration": {
+                "name": "django",
+                "type": "python",
+                "request": "attach",
+                "connect": {
+                    "host": "localhost",
+                    "port": 8000
+                }
+            }
+        }
+    }
+}
