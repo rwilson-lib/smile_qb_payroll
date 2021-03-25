@@ -1,16 +1,15 @@
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Sum
+from django.db.models.signals import pre_save
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import MoneyField
 from djmoney.money import Money
 
 from country.models import Country, State
+from payroll.income import Income, PayPeriod
 from utils import create_money
-
-from payroll.income import Income
-from payroll.income import PayPeriod
 
 
 class Employee(models.Model):
@@ -61,7 +60,7 @@ class Employee(models.Model):
 
     @property
     def total_owed(self):
-        total_owed = self.deductable_set.all()
+        return self.deductable_set.all()
 
     def clean(self):
         errors = {}
@@ -76,7 +75,7 @@ class Employee(models.Model):
             raise ValidationError(errors)
 
     def __str__(self):
-        return "%s %s %s" % (self.first_name, self.middle_name, self.last_name)
+        return f"{self.first_name} {self.middle_name} {self.last_name}"
 
     class Meta:
         ordering = ["employee_id_number"]
@@ -169,21 +168,24 @@ class EmployeePosition(models.Model):
         errors = {}
         minimum_wage = create_money(1.00, self.negotiated_salary_currency)
 
-        if not self.negotiated_salary:
-            self.negotiated_salary = self.position.base_salary
-            self.negotiated_salary_currency = self.position.base_salary_currency
-            self.pay_period = self.position.pay_period
-
-        if not self.grade:
-            self.grade = self.position.grade
-
-        elif self.negotiated_salary < minimum_wage:
-            errors["negotiated_salary"] = _(
-                f"salary cannot less than MinimumWage {minimum_wage}"
-            )
+        if self.negotiated_salary:
+            if self.negotiated_salary < minimum_wage:
+                errors["negotiated_salary"] = _(
+                    f"salary cannot less than MinimumWage {minimum_wage}"
+                )
 
         if errors:
             raise ValidationError(errors)
+
+    @classmethod
+    def pre_create(cls, sender, instance, *args, **kwargs):
+        if not instance.negotiated_salary:
+            instance.negotiated_salary = instance.position.base_salary
+            instance.negotiated_salary_currency = instance.position.base_salary_currency
+            instance.pay_period = instance.position.pay_period
+
+        if not instance.grade:
+            instance.grade = instance.position.grade
 
     def __str__(self):
         return f"{self.employee} {self.position}"
@@ -201,3 +203,6 @@ class Earning(models.Model):
 
     def __str__(self):
         return f"{self.earning}, {self.amount}"
+
+
+pre_save.connect(EmployeePosition.pre_create, sender=EmployeePosition)
