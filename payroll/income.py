@@ -1,7 +1,7 @@
-from django.db import models
 from collections import OrderedDict
 from functools import reduce
-from utils import create_money
+
+from django.db import models
 from djmoney.money import Money
 
 
@@ -13,6 +13,16 @@ class PayPeriod(models.IntegerChoices):
     WEEKLY = 2
     DAILY = 1
     HOURLY = 0
+
+
+class IncomeType(models.IntegerChoices):
+    SALARY = 0
+    GROSS = 1
+    NET = 2
+    TAKE_HOME = 3
+    EXTRA = 4
+    DEDUCTION = 5
+    OTHER = 6
 
 
 TABLE = (
