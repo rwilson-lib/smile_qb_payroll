@@ -4,14 +4,13 @@ from django.db.models import Q, Sum
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from djmoney.models.fields import MoneyField
+from djmoney.models.fields import CurrencyField, MoneyField
 
 from employee.models import Employee, EmployeePosition
-from payroll.income import Income, PayPeriod, IncomeType
-from tax.models import Revision, TaxContribution, PayBy
+from payroll.income import Income, IncomeType, PayPeriod
+from tax.models import PayBy, Revision, TaxContribution
 from tax.tax_calc import test_tax
 from utils import create_money
-from functools import reduce
 
 
 class ExchangeRate(models.Model):
@@ -73,6 +72,7 @@ class Deductable(models.Model):
         default=create_money("0.00", "USD"),
         default_currency="USD",
     )
+    amount_currency = CurrencyField()
     interest_rate = models.DecimalField(
         max_digits=5, decimal_places=2, blank=True, null=True
     )
@@ -137,7 +137,7 @@ class Deductable(models.Model):
             raise ValidationError(errors)
 
     def __str__(self):
-        return "%s %s %s %s" % (self.employee, self.item, self.amount, self.date)
+        return f"{self.employee} {self.item} {self.amount} {self.date}"
 
 
 class DeductionPlan(models.Model):
