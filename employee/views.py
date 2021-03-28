@@ -1,22 +1,17 @@
-from django.core import serializers
-from django.core.serializers.json import DjangoJSONEncoder
-from django.shortcuts import render
-from django.shortcuts import get_object_or_404
-from django.http import HttpResponseRedirect
-from django.http import JsonResponse
-from django.forms import modelformset_factory
-from django.forms import inlineformset_factory
-
-from .forms import EmployeeForm
-from .forms import EmployeePositionForm
-
-from .models import Employee
-from .models import EmployeePosition
-from .models import Address
-
 import json
 
+from django.core import serializers
+from django.core.serializers.json import DjangoJSONEncoder
+from django.forms import inlineformset_factory, modelformset_factory
+from django.http import HttpResponseRedirect, JsonResponse
+from django.shortcuts import get_object_or_404, render
 
+from .forms import EmployeeForm, EmployeePositionForm
+from .models import Address, Employee, EmployeePosition
+
+
+# Disable all the unused-variable violations in this function
+# pylint: disable=unused-variable
 def home(request):
     template = "employee_list.html"
     # employees = Employee.objects.all()
@@ -42,9 +37,9 @@ def home(request):
     return render(request, template, context)
 
 
-def employee_get(request, id):
+def employee_get(request, pk):
     template = "employee_detail.html"
-    employee = get_object_or_404(Employee, pk=id)
+    employee = get_object_or_404(Employee, pk=pk)
 
     context = {
         "employee": employee,
@@ -74,6 +69,8 @@ def employee_create(request):
             request.POST, instance=EmployeePosition()
         )
 
+        # Disable all the C0330 violations in this function
+        # pylint: disable=C0330
         if (
             employee_form.is_valid()
             and employee_position_form.is_valid()
@@ -89,14 +86,15 @@ def employee_create(request):
             new_position.save()
             return HttpResponseRedirect("/employee")
 
-        else:
-            context["employee_form"] = employee_form
-            context["address_formset"] = address_formset
-            context["employee_position_form"] = employee_position_form
+        context["employee_form"] = employee_form
+        context["address_formset"] = address_formset
+        context["employee_position_form"] = employee_position_form
     return render(request, template, context)
 
 
-def employee_edit(request, id):
+def employee_edit(request, pk):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     template = "employee_update.html"
     context = {}
 
@@ -104,7 +102,7 @@ def employee_edit(request, id):
         Employee, Address, extra=1, exclude=["id", "employee"]
     )
 
-    employee = get_object_or_404(Employee, pk=id)
+    employee = get_object_or_404(Employee, pk=pk)
     employee_current_position = employee.employeeposition_set.last()
     employee_addresses = employee.address_set.all()
 
@@ -120,6 +118,8 @@ def employee_edit(request, id):
     context["employee_id"] = employee.id
 
     if request.method == "POST":
+        # Disable all the C0330 violations in this function
+        # pylint: disable=C0330
         if (
             employee_form.is_valid()
             and employee_position_form.is_valid()
@@ -146,12 +146,9 @@ def employee_edit(request, id):
 
 def employee_search(request):
     data = {}
-    id = 1
+    pk = 1
     if request.method == "GET":
-        employees = Employee.objects.filter(pk=id)
+        employees = Employee.objects.filter(pk=pk)
         data = serializers.serialize("json", employees, fields=("id", "name"))
-
-    for query in request.GET:
-        print(query, request.GET[query])
 
     return JsonResponse(data, safe=False)

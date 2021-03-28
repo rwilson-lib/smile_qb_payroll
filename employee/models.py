@@ -67,9 +67,9 @@ class Employee(models.Model):
 
         if self.maiden_name:
             if self.gender == self.Gender.MALE:
-                errors["maiden_name"] = _(f"Not allow for male must be a Female")
+                errors["maiden_name"] = _("Not allow for male must be a Female")
             if self.marital_status == self.MaritalStatus.SINGLE:
-                errors["maiden_name"] = _(f"field not allow for single individual")
+                errors["maiden_name"] = _("field not allow for single individual")
 
         if errors:
             raise ValidationError(errors)
@@ -82,6 +82,8 @@ class Employee(models.Model):
 
 
 class Address(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     class Label(models.TextChoices):
         WORK_PRIMARY = "WP"
         HOME_PRIMARY = "HP"
@@ -107,6 +109,8 @@ class Department(models.Model):
 
 
 class DepartmentHead(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
 
@@ -153,8 +157,10 @@ class EmployeePosition(models.Model):
 
     @property
     def other_earnings(self):
-        sum = self.earning_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
-        return create_money(sum, self.negotiated_salary.currency)
+        # Disable all the no-member violations in this function
+        # pylint: disable=no-member
+        total = self.earning_set.aggregate(total=Sum("amount"))["total"] or 0.00
+        return create_money(total, self.negotiated_salary.currency)
 
     @property
     def total_earnings(self):
@@ -165,6 +171,8 @@ class EmployeePosition(models.Model):
         get_latest_by = ["position_date"]
 
     def clean(self):
+        # Disable all the no-member violations in this function
+        # pylint: disable=no-member
         errors = {}
         minimum_wage = create_money(1.00, self.negotiated_salary_currency)
 
@@ -192,6 +200,8 @@ class EmployeePosition(models.Model):
 
 
 class Earning(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     employee_position = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     earning = models.CharField(max_length=25)
     amount = MoneyField(
