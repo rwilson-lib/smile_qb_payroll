@@ -1,12 +1,10 @@
-from django.db import models
 from django.core.exceptions import ValidationError
+from django.db import models
 from django.utils.translation import gettext_lazy as _
+from djmoney.models.fields import CurrencyField, MoneyField
 
-from djmoney.models.fields import MoneyField
-from djmoney.models.fields import CurrencyField
 from country.models import Country
-
-from payroll.income import PayPeriod, IncomeType
+from payroll.income import IncomeType, PayPeriod
 from utils import create_money
 
 
@@ -33,7 +31,8 @@ class Revision(models.Model):
 
 
 class TaxContribution(models.Model):
-
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     tax = models.CharField(max_length=25)
     type = models.PositiveIntegerField(choices=TaxType.choices)
@@ -71,6 +70,8 @@ class TaxContribution(models.Model):
 
 
 class Clause(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     line_num = models.CharField(max_length=19)
     start = models.DecimalField(max_digits=19, decimal_places=4)
