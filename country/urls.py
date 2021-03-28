@@ -14,8 +14,11 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
+
 from . import views
 
+# Disable all the unused-variable violations in this function
+# pylint: disable=unused-variable
 urlpatterns = [
     # path('', views.home, name='country_home'),
     path("<int:id>/states", views.get_country_states, name="get_country_states"),

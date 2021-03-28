@@ -22,6 +22,8 @@ class Country(models.Model):
 
 
 class State(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     name = models.CharField(max_length=25)
     state_code = models.CharField(max_length=3)
@@ -31,6 +33,8 @@ class State(models.Model):
 
 
 class TimeZone(models.Model):
+    # Disable all the unused-variable violations in this function
+    # pylint: disable=unused-variable
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     zoneName = models.CharField(max_length=50)
     gmtOffset = models.IntegerField()
