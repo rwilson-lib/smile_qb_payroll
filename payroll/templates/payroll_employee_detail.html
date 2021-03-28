@@ -1,18 +1,54 @@
 {% extends 'base.html' %}
 {% block title %}Employee Paid Details{% endblock %}
 {% block content%}
-<p><span>Payroll Date: </span> {{ payroll_employee.payroll.date }}</p>
-<p><span>Tax Revision: </span> {{ payroll_employee.payroll.tax_revision }}</p>
-<p><span>Paroll Rate: </span> {{ payroll_employee.payroll.rate }}</p>
-<p><span>ID No.:</span> {{ payroll_employee.employee.employee.employee_id_number }}</p>
-<p><span>First Name:</span> {{ payroll_employee.employee.employee.first_name }}</p>
-<p><span>Middle Name:</span> {{ payroll_employee.employee.employee.middle_name }}</p>
-<p><span>Last Name:</span> {{ payroll_employee.employee.employee.last_name }}</p>
-<p><span>Job Grade:</span> {{ payroll_employee.employee.grade }}</p>
-<p><span>PayPeriod:</span> {{ payroll_employee.employee.get_pay_period_display }}</p>
-<p><span>Currency:</span> {{ payroll_employee.employee.negotiated_salary_currency }}</p>
-<p><span>Job Title: </span> {{ payroll_employee.employee.position.position }}</p>
-<p><span>Department: </span> {{ payroll_employee.employee.position.department }}</p>
+
+<p>
+  <span>Payroll Date: </span> 
+  {{ payroll_employee.payroll.date }}
+</p>
+<p>
+  <span>Tax Revision: </span> 
+  {{ payroll_employee.payroll.tax_revision }}
+</p>
+<p>
+  <span>Paroll Rate: </span>
+  {{ payroll_employee.payroll.rate }}
+</p>
+<p>
+  <span>ID No.: </span>
+  {{ payroll_employee.employee.employee.employee_id_number }}</p>
+<p>
+  <span>First Name: </span>
+  {{ payroll_employee.employee.employee.first_name }}
+</p>
+<p>
+  <span>Middle Name: </span>
+  {{ payroll_employee.employee.employee.middle_name }}
+</p>
+<p>
+  <span>Last Name: </span>
+  {{ payroll_employee.employee.employee.last_name }}
+</p>
+<p>
+  <span>Job Grade: </span>
+  {{ payroll_employee.employee.grade }}
+</p>
+<p>
+  <span>PayPeriod: </span>
+  {{ payroll_employee.employee.get_pay_period_display }}
+</p>
+<p>
+  <span>Currency: </span>
+  {{ payroll_employee.employee.negotiated_salary_currency }}
+</p>
+<p>
+  <span>Job Title: </span>
+  {{ payroll_employee.employee.position.position }}
+</p>
+<p>
+  <span>Department: </span>
+  {{ payroll_employee.employee.position.department }}
+</p>
 
 <table>
   <h3>Earnings</h3>

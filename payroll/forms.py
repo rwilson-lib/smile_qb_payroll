@@ -4,6 +4,8 @@ from django.forms import ModelForm
 from .models import Payroll
 
 
+# Disable all the unused-variable violations in this function
+# pylint: disable=unused-variable
 class PayrollForm(ModelForm):
     class Meta:
         model = Payroll

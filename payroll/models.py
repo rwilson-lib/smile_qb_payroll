@@ -115,11 +115,11 @@ class Deductable(models.Model):
 
     @property
     def interest(self):
-        i = create_money(0.00, self.amount.currency)
+        money = create_money(0.00, self.amount.currency)
         if not self.interest_rate:
-            return i
-        i.amount = self.amount.amount * self.interest_rate
-        return i
+            return money
+        money.amount = self.amount.amount * self.interest_rate
+        return money
 
     class Meta:
         ordering = ["-date"]

@@ -1,4 +1,3 @@
-
 """smile_qb_payroll URL Configuration
 
 The `urlpatterns` list routes URLs to views. For more information please see:
@@ -15,13 +14,20 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
+
 from . import views
 
+# Disable all the unused-variable violations in this function
+# pylint: disable=unused-variable
 urlpatterns = [
-    path('', views.home, name='payroll_list'),
-    path('create/', views.payroll_create, name='payroll_create'),
-    path('<int:id>/', views.payroll_get, name='payroll_detail'),
-    path('<int:id>/employee/<int:line_id>', views.payroll_employee_get, name='payroll_employee_detail'),
-    path('<int:id>/deduction', views.payroll_deduction, name='payroll_deduction'),
-    path('<int:id>/extras', views.payroll_extra, name='payroll_extra'),
+    path("", views.home, name="payroll_list"),
+    path("create/", views.payroll_create, name="payroll_create"),
+    path("<int:id>/", views.payroll_get, name="payroll_detail"),
+    path(
+        "<int:id>/employee/<int:line_id>",
+        views.payroll_employee_get,
+        name="payroll_employee_detail",
+    ),
+    path("<int:id>/deduction", views.payroll_deduction, name="payroll_deduction"),
+    path("<int:id>/extras", views.payroll_extra, name="payroll_extra"),
 ]

@@ -1,30 +1,23 @@
-from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import Count, Sum
-from django.db.models import Q
-from django.forms import formset_factory
-from django.http import HttpResponse
-from django.http import HttpResponseRedirect
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.shortcuts import render
-
 import json
 
-from .models import Payroll
-from .models import PayrollDeduction
-from .models import PayrollEmployee
-from .models import PayrollExtra
-from .models import EmployeePosition
+from django.core.serializers.json import DjangoJSONEncoder
+from django.db.models import Count, Q, Sum
+from django.forms import formset_factory
+from django.http import JsonResponse, HttpResponseRedirect
+from django.shortcuts import get_object_or_404, render
 
-from employee.models import Employee
-
-from .forms import PayrollForm
-from .forms import AddEmployeeForm
-
-from utils import total_amount
 from utils import create_money
 
+from .forms import AddEmployeeForm, PayrollForm
+from .models import (
+    EmployeePosition,
+    Payroll,
+    PayrollEmployee,
+)
 
+
+# Disable all the unused-variable violations in this function
+# pylint: disable=unused-variable
 def home(request):
     payroll = Payroll.objects.all().annotate(total_amount=Count("payrollemployee"))
     template = "payroll_list.html"
@@ -40,11 +33,11 @@ def get_query_ajax(request):
     results = []
     if employee_ids:
         employee_ids = employee_ids[1:-1].split(",")
-        for id in employee_ids:
-            id = int(id)
+        for emp_id in employee_ids:
+            emp_id = int(emp_id)
             employee_positions = (
                 EmployeePosition.objects.filter(
-                    employee=id, state=EmployeePosition.State.CURRENT
+                    employee=emp_id, state=EmployeePosition.State.CURRENT
                 )
                 .select_related("employee", "position")
                 .latest()
