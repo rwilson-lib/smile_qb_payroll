@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_extensions",
     "djmoney",
+    "widget_tweaks",
     "country",
     "payroll",
     "tax",

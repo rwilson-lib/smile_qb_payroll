@@ -2,12 +2,12 @@ import json
 
 from django.core import serializers
 from django.core.serializers.json import DjangoJSONEncoder
-from django.forms import inlineformset_factory, modelformset_factory
+from django.forms import inlineformset_factory, formset_factory
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from .forms import EmployeeForm, EmployeePositionForm
-from .models import Address, Employee, EmployeePosition
+from .forms import EmployeeForm, EmployeePositionForm, EarningForm, AddressForm, JobForm
+from .models import Address, Employee, EmployeePosition, Earning, Job
 
 
 # Disable all the unused-variable violations in this function
@@ -52,15 +52,21 @@ def employee_create(request):
     template = "employee_create.html"
     context = {}
 
-    AddressFormSet = modelformset_factory(Address, exclude=["id", "employee"], extra=1)
+    AddressFormSet = formset_factory(AddressForm, extra=1)
+    EarningFormSet = formset_factory(EarningForm, extra=4)
 
     employee_form = EmployeeForm(instance=Employee())
-    address_formset = AddressFormSet(queryset=Address.objects.none())
     employee_position_form = EmployeePositionForm(instance=EmployeePosition())
+    job_form = JobForm(instance=Job())
+
+    address_formset = AddressFormSet()
+    employee_position_earns_formset = EarningFormSet()
 
     context["employee_form"] = employee_form
-    context["address_formset"] = address_formset
     context["employee_position_form"] = employee_position_form
+    context["job_form"] = job_form
+    context["address_formset"] = address_formset
+    context["employee_position_earns_formset"] = employee_position_earns_formset
 
     if request.method == "POST":
         employee_form = EmployeeForm(request.POST, instance=Employee())

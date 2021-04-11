@@ -29,15 +29,7 @@ class Employee(models.Model):
         PART_TIME = 1
         CONTRACTOR = 2
 
-    hire_date = models.DateField()
     employee_id_number = models.CharField(max_length=25, unique=True)
-    tin = models.CharField(max_length=25, null=True, blank=True, unique=True)
-    social_security_number = models.CharField(
-        max_length=25, null=True, blank=True, unique=True
-    )
-    employment_type = models.IntegerField(choices=EmploymentType.choices)
-    employment_end_date = models.DateField()
-
     first_name = models.CharField(max_length=25)
     middle_name = models.CharField(max_length=25, blank=True, null=True)
     last_name = models.CharField(max_length=25)
@@ -45,13 +37,21 @@ class Employee(models.Model):
     gender = models.CharField(max_length=1, choices=Gender.choices)
     marital_status = models.CharField(max_length=2, choices=MaritalStatus.choices)
     date_of_birth = models.DateField()
+    nationality = models.ForeignKey(Country, on_delete=models.CASCADE)
+
+    hire_date = models.DateField()
+    employment_type = models.IntegerField(choices=EmploymentType.choices)
+    tin = models.CharField(max_length=25, null=True, blank=True, unique=True)
+    social_security_number = models.CharField(
+        max_length=25, null=True, blank=True, unique=True
+    )
+    employment_end_date = models.DateField()
 
     personal_email = models.EmailField(unique=True, blank=True, null=True)
     work_email = models.EmailField(unique=True, blank=True, null=True)
     personal_phone = models.CharField(max_length=25, unique=True, blank=True, null=True)
     work_phone = models.CharField(max_length=25, unique=True, blank=True, null=True)
 
-    nationality = models.ForeignKey(Country, on_delete=models.CASCADE)
     active = models.BooleanField(default=False)
 
     @property
@@ -59,7 +59,7 @@ class Employee(models.Model):
         return ((timezone.now().date() - self.date_of_birth) / 365).days
 
     @property
-    def total_owed(self):
+    def total_owed(self) -> Money:
         return self.deductable_set.all()
 
     def clean(self):

@@ -128,6 +128,7 @@ def payroll_create(request):
         if payroll_form.is_valid() and formsets.is_valid():
             new_payroll = payroll_form.save()
             counter = 0
+            # check with all browsers having issues with safari
             for data in formsets:
                 if data.cleaned_data.get("employee_id"):
                     counter += 1
