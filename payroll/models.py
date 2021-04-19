@@ -78,7 +78,7 @@ class Deductable(models.Model):
     )
     date = models.DateField(default=timezone.now)
     payment_start_date = models.DateField()
-    completed = models.BooleanField(default=False, editable=False)
+    completed = models.BooleanField(default=False)
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
@@ -115,6 +115,8 @@ class Deductable(models.Model):
 
     @property
     def interest(self):
+        # Disable all the no-member violations in this function
+        # pylint: disable=no-member
         money = create_money(0.00, self.amount.currency)
         if not self.interest_rate:
             return money
@@ -156,23 +158,15 @@ class DeductionPlan(models.Model):
     percent = models.DecimalField(max_digits=5, decimal_places=2)
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVE)
 
-    def mark_as_completed(self):
-        self.status = self.Status.COMPLETED
-        self.deductable.completed = True
-        self.save()
-        self.deductable.save()
-
-    def deduct(self, amount):
+    def deduct(self):
         if self.deductable.completed:
             return None
         default = create_money("0.00", "USD")
         balance = self.deductable.balance
-        value = amount * self.percent
+        value = self.deductable.amount * self.percent
         if balance <= default:
-            self.mark_as_completed()
             return None
         if value >= balance:
-            self.mark_as_completed()
             return balance
         return value
 
@@ -296,13 +290,7 @@ class PayrollEmployee(models.Model):
                 & Q(deductable__completed=False)
                 & Q(deductable__employee=self.employee.employee.id)
             )
-            for amount in [
-                active_plan.deduct(
-                    self._select_income_function(
-                        IncomeType(active_plan.deduct_from)
-                    ).money
-                )
-            ]
+            for amount in [active_plan.deduct()]
             if amount
         ]
 
@@ -344,6 +332,7 @@ class PayrollEmployee(models.Model):
             if contrib_tax.contribution.tax.pay_by == PayBy.EMPLOYEE:
                 total_deductions["tax_n_contribution"] += contrib_tax.amount
         for deduction in self._calc_deduction():
+            deduction.mark_as_completed()
             total_deductions["deduction"] += deduction.amount
 
         total_deductions["total"] = (
@@ -441,15 +430,29 @@ class PayrollDeduction(models.Model):
         default_currency="USD",
     )
 
+    def mark_as_completed(self):
+        if self.plan.deductable.is_completed is True:
+            self.plan.deductable.completed = True
+            self.plan.status = DeductionPlan.Status.COMPLETED
+            self.plan.deductable.save()
+            self.plan.save()
+        else:
+            self.plan.deductable.completed = False
+            self.plan.status = DeductionPlan.Status.ACTIVE
+            self.plan.deductable.save()
+            self.plan.save()
+
     class Meta:
         unique_together = ("payroll_employee", "plan")
 
     @classmethod
-    def post_create_or_update(cls, sender, instance, *args, **kwargs):
+    def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
+        instance.mark_as_completed()
         instance.payroll_employee.update_calc_props()
 
     @classmethod
     def post_delete(cls, sender, instance, *args, **kwargs):
+        instance.mark_as_completed()
         instance.payroll_employee.update_calc_props()
 
     def clean(self):
@@ -500,8 +503,10 @@ class TaxContributionCollector(models.Model):
 
 pre_save.connect(PayrollEmployee.pre_create, sender=PayrollEmployee)
 post_save.connect(PayrollEmployee.post_create_or_update, sender=PayrollEmployee)
+
 post_save.connect(PayrollExtra.post_create_or_update, sender=PayrollExtra)
 post_delete.connect(PayrollExtra.post_delete, sender=PayrollExtra)
+
 post_save.connect(PayrollDeduction.post_create_or_update, sender=PayrollDeduction)
 post_delete.connect(PayrollDeduction.post_delete, sender=PayrollDeduction)
 
