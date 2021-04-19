@@ -1,10 +1,9 @@
+import math
 from collections import namedtuple
+
 from djmoney.money import Money
 
-from payroll.income import PayPeriod
-from payroll.income import Income
-
-import math
+from payroll.income import Income, PayPeriod
 
 
 def calc_tax(income, excess_over, percent, extra):
