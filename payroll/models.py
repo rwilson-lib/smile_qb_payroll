@@ -63,7 +63,7 @@ class Payroll(models.Model):
         return f"{self.date}"
 
 
-class Deductable(models.Model):
+class Credit(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     item = models.CharField(max_length=100)
     amount = MoneyField(
@@ -85,7 +85,7 @@ class Deductable(models.Model):
         if not created:
             status = instance.is_completed
             if status != instance.completed:
-                Deductable.objects.filter(pk=instance.id).update(completed=status)
+                Credit.objects.filter(pk=instance.id).update(completed=status)
 
     @property
     def is_completed(self):
@@ -142,7 +142,7 @@ class Deductable(models.Model):
         return f"{self.employee} {self.item} {self.amount} {self.date}"
 
 
-class DeductionPlan(models.Model):
+class CreditPaymentPlan(models.Model):
     class Status(models.IntegerChoices):
         CANCEL = 0
         ACTIVE = 1
@@ -150,7 +150,7 @@ class DeductionPlan(models.Model):
         SKIP_NEXT_PAID = 3
         COMPLETED = 4
 
-    deductable = models.ForeignKey(Deductable, on_delete=models.CASCADE)
+    credit = models.ForeignKey(Credit, on_delete=models.CASCADE)
     name = models.CharField(max_length=25)
     deduct_from = models.IntegerField(
         choices=IncomeType.choices, default=IncomeType.NET
@@ -159,11 +159,11 @@ class DeductionPlan(models.Model):
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVE)
 
     def deduct(self):
-        if self.deductable.completed:
+        if self.credit.completed:
             return None
         default = create_money("0.00", "USD")
-        balance = self.deductable.balance
-        value = self.deductable.amount * self.percent
+        balance = self.credit.balance
+        value = self.credit.amount * self.percent
         if balance <= default:
             return None
         if value >= balance:
@@ -176,7 +176,7 @@ class DeductionPlan(models.Model):
         return create_money(total, "USD")
 
     def __str__(self):
-        return f"{self.name}, {self.deductable}, {self.percent}"
+        return f"{self.name}, {self.credit}, {self.percent}"
 
 
 class PayrollEmployee(models.Model):
@@ -285,10 +285,10 @@ class PayrollEmployee(models.Model):
     def _calc_deduction(self):
         return [
             PayrollDeduction(payroll_employee=self, plan=active_plan, amount=amount)
-            for active_plan in DeductionPlan.objects.filter(
-                Q(status=DeductionPlan.Status.ACTIVE)
-                & Q(deductable__completed=False)
-                & Q(deductable__employee=self.employee.employee.id)
+            for active_plan in CreditPaymentPlan.objects.filter(
+                Q(status=CreditPaymentPlan.Status.ACTIVE)
+                & Q(credit__completed=False)
+                & Q(credit__employee=self.employee.employee.id)
             )
             for amount in [active_plan.deduct()]
             if amount
@@ -422,7 +422,7 @@ class PayrollExtra(models.Model):
 
 class PayrollDeduction(models.Model):
     payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
-    plan = models.ForeignKey(DeductionPlan, on_delete=models.CASCADE)
+    payment_plan = models.ForeignKey(CreditPaymentPlan, on_delete=models.CASCADE)
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
@@ -431,19 +431,19 @@ class PayrollDeduction(models.Model):
     )
 
     def mark_as_completed(self):
-        if self.plan.deductable.is_completed is True:
-            self.plan.deductable.completed = True
-            self.plan.status = DeductionPlan.Status.COMPLETED
-            self.plan.deductable.save()
-            self.plan.save()
+        if self.payment_plan.credit.is_completed is True:
+            self.payment_plan.credit.completed = True
+            self.payment_plan.status = CreditPaymentPlan.Status.COMPLETED
+            self.payment_plan.credit.save()
+            self.payment_plan.save()
         else:
-            self.plan.deductable.completed = False
-            self.plan.status = DeductionPlan.Status.ACTIVE
-            self.plan.deductable.save()
-            self.plan.save()
+            self.payment_plan.credit.completed = False
+            self.payment_plan.status = CreditPaymentPlan.Status.ACTIVE
+            self.payment_plan.credit.save()
+            self.payment_plan.save()
 
     class Meta:
-        unique_together = ("payroll_employee", "plan")
+        unique_together = ("payroll_employee", "payment_plan")
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
@@ -461,7 +461,7 @@ class PayrollDeduction(models.Model):
         errors = {}
 
         payroll_emp_id = self.payroll_employee.employee.employee.id
-        plan_emp_id = self.plan.deductable.employee.id
+        plan_emp_id = self.payment_plan.credit.employee.id
 
         if payroll_emp_id != plan_emp_id:
             errors["plan"] = _("deducting from the wrong employee")
@@ -469,14 +469,14 @@ class PayrollDeduction(models.Model):
         if self.amount.amount == 0.00:
             errors["amount"] = _("amount cannot be zero")
 
-        if self.amount_currency != self.plan.deductable.amount_currency:
+        if self.amount_currency != self.plan.credit.amount_currency:
             errors["amount"] = _("wrong currency")
 
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.payroll_employee} {self.plan} {self.amount}"
+        return f"{self.payroll_employee} {self.payment_plan} {self.amount}"
 
 
 class EmployeeTaxContribution(models.Model):
@@ -510,4 +510,4 @@ post_delete.connect(PayrollExtra.post_delete, sender=PayrollExtra)
 post_save.connect(PayrollDeduction.post_create_or_update, sender=PayrollDeduction)
 post_delete.connect(PayrollDeduction.post_delete, sender=PayrollDeduction)
 
-post_save.connect(Deductable.post_create_or_update, sender=Deductable)
+post_save.connect(Credit.post_create_or_update, sender=Credit)
