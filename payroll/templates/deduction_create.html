@@ -1,0 +1,51 @@
+{% extends 'sidebar.html'%}
+{% load widget_tweaks %}
+{% block display %}
+  <form id="id_credit-payment-form">
+    <fieldset>
+        <div>
+          {{ deductable_form.employee.label_tag }}
+          {{ deductable_form.employee }}
+        </div>
+        <div>
+          {{ deductable_form.date.label_tag }}
+          {{ deductable_form.date }}
+        </div>
+        <div>
+          {{ deductable_form.item.label_tag }}
+          {{ deductable_form.item }}
+        </div>
+        <div>
+          {{ deductable_form.amount.label_tag }}
+          {{ deductable_form.amount }}
+        </div>
+        <div>
+          {{ deductable_form.interest_rate.label_tag }}
+          {{ deductable_form.interest_rate }}
+        </div>
+        <div>
+          {{ deductable_form.payment_start_date.label_tag }}
+          {{ deductable_form.payment_start_date }}
+        </div>
+    </fieldset>
+    <fieldset>
+      {% for formset in deduction_plan_formset %}
+        <div> 
+          {{ formset.name.label_tag }}
+          {{ formset.name }}
+        </div>
+        <div>
+          {{ formset.deduct_from.label_tag }}
+          {{ formset.deduct_from }}
+        </div>
+        <div>
+          {{ formset.percent.label_tag }}
+          {{ formset.percent }}
+        </div>
+        <hr>
+      {% endfor %}
+        <button type="button" class="btn btn-primary form-control">Cancel</button>
+        <button type="submit" class="btn btn-primary form-control">Create</button>
+    </fieldset>
+  </form>
+{% endblock %}

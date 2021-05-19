@@ -1,6 +1,13 @@
 from django.forms import ModelForm
 
-from .models import Address, Earning, Employee, EmployeePosition, Job
+from .models import (
+    Address,
+    Department,
+    Earning,
+    Employee,
+    EmployeePosition,
+    Job,
+)
 
 
 class EarningForm(ModelForm):
@@ -15,6 +22,13 @@ class EarningForm(ModelForm):
         exclude = ["id", "employee_position"]
 
 
+# add department head
+class DepartmentForm(ModelForm):
+    class Meta:
+        model = Department
+        exclude = ["id"]
+
+
 class JobForm(ModelForm):
     class Meta:
         model = Job
@@ -27,6 +41,12 @@ class EmployeeForm(ModelForm):
         self.fields["tin"].widget.attrs["placeholder"] = self.fields["tin"].label
         self.fields["employee_id_number"].widget.attrs["placeholder"] = self.fields[
             "employee_id_number"
+        ].label
+        self.fields["hire_date"].widget.attrs["placeholder"] = self.fields[
+            "hire_date"
+        ].label
+        self.fields["employment_end_date"].widget.attrs["placeholder"] = self.fields[
+            "employment_end_date"
         ].label
         self.fields["social_security_number"].widget.attrs["placeholder"] = self.fields[
             "social_security_number"

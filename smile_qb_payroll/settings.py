@@ -42,10 +42,11 @@ INSTALLED_APPS = [
     "django_extensions",
     "djmoney",
     "widget_tweaks",
+    "accounting",
     "country",
+    "employee",
     "payroll",
     "tax",
-    "employee",
 ]
 
 MIDDLEWARE = [

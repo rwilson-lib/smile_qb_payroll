@@ -8,12 +8,15 @@ from django.shortcuts import get_object_or_404, render
 
 from utils import create_money
 
-from .forms import AddEmployeeForm, PayrollForm
-from .models import (
-    EmployeePosition,
-    Payroll,
-    PayrollEmployee,
+from .forms import (
+    AddEmployeeForm,
+    PayrollForm,
+    ExchangeRateForm,
+    CreditForm,
+    CreditPaymentPlanForm,
+    EmployeeTaxContributionForm,
 )
+from .models import EmployeePosition, Payroll, PayrollEmployee, ExchangeRate
 
 
 # Disable all the unused-variable violations in this function
@@ -67,10 +70,15 @@ def payroll_create(request):
     template = "payroll_create.html"
 
     PayrollEmployeeFormSet = formset_factory(AddEmployeeForm, min_num=29)
+    exchangerate_form = ExchangeRateForm()
     payroll_form = PayrollForm()
     formset = PayrollEmployeeFormSet()
 
-    context = {"payroll_form": payroll_form, "payroll_item_formset": formset}
+    context = {
+        "payroll_form": payroll_form,
+        "payroll_item_formset": formset,
+        "exchangerate_form": exchangerate_form,
+    }
 
     ajax_employee_id = request.GET.get("emp_id")
     ajax_employee_fn = request.GET.get("fn")
@@ -149,8 +157,8 @@ def payroll_create(request):
     return render(request, template, context)
 
 
-def payroll_get(request, id):
-    payroll = get_object_or_404(Payroll, id=id)
+def payroll_get(request, pk):
+    payroll = get_object_or_404(Payroll, pk=pk)
     payroll_employee_items = payroll.payrollemployee_set.all()
 
     template = "payroll_detail.html"
@@ -159,10 +167,10 @@ def payroll_get(request, id):
     return render(request, template, context)
 
 
-def payroll_employee_get(request, id, line_id):
+def payroll_employee_get(request, pk, line_pk):
 
-    payroll = get_object_or_404(Payroll, id=id)
-    payroll_employee = payroll.payrollemployee_set.get(pk=line_id)
+    payroll = get_object_or_404(Payroll, pk=pk)
+    payroll_employee = payroll.payrollemployee_set.get(pk=line_pk)
     extra_incomes = payroll_employee.payrollextra_set.all()
     deductions = payroll_employee.payrolldeduction_set.all()
     earnings = payroll_employee.employee.earning_set.all()
@@ -190,9 +198,26 @@ def payroll_employee_get(request, id, line_id):
     return render(request, template, context)
 
 
-def payroll_deduction(request, id):
+def deduction_create(request):
+    template = "deduction_create.html"
 
-    employee = PayrollEmployee.objects.get(pk=id)
+    CreditPaymentPlanFormSet = formset_factory(
+        CreditPaymentPlanForm, min_num=1, extra=0, max_num=10
+    )
+
+    deductable_form = CreditForm()
+    deduction_plan_formset = CreditPaymentPlanFormSet()
+
+    context = {
+        "deductable_form": deductable_form,
+        "deduction_plan_formset": deduction_plan_formset,
+    }
+    return render(request, template, context)
+
+
+def payroll_deduction(request, pk):
+
+    employee = PayrollEmployee.objects.get(pk=pk)
     employee_deductions = employee.payrolldeduction_set.all()
 
     template = "deductions.html"
@@ -200,9 +225,9 @@ def payroll_deduction(request, id):
     return render(request, template, context)
 
 
-def payroll_extra(request, id):
+def payroll_extra(request, pk):
 
-    employee = PayrollEmployee.objects.get(pk=id)
+    employee = PayrollEmployee.objects.get(pk=pk)
     employee_extras = employee.payrollextra_set.all()
 
     template = "extras.html"

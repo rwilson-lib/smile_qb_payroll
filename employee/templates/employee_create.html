@@ -1,244 +1,117 @@
-{% extends 'base.html' %}
+{% extends 'sidebar.html' %}
 {% block title %}Create Employee{% endblock %}
-{% block content %}
 {% load widget_tweaks %}
-<form class="container" action="{% url 'employee_create' %}" method="POST">
-  {% csrf_token %}
-  <input type="hidden" id="Url" data-url="{% url 'get_country_states' 0 %}" />
-    <fieldset id="employee">
-      <legend>Personal</legend>
-      <div class="row">
-        <div class="col-4">
-          {{ employee_form.employment_type.label_tag }}
-          {{ employee_form.employment_type|add_class:"form-control" }}
-        </div>
-        <div class="col-4">
-          {{ employee_form.hire_date.label_tag }}
-          {{ employee_form.hire_date|add_class:"form-control" }}
-        </div>
-        <div class="col-4">
-          {{ employee_form.employment_end_date.label_tag }}
-          {{ employee_form.employment_end_date|add_class:"form-control" }}
+{% block display %}
+<div class="tab-container">
+  <ul class="tab-menu">
+    <li class="active-menu"><a href="#employee">Personal</a></li>
+    <li><a href="#address">Addresses &amp; Contacts</a></li>
+    <li><a href="#employee-earning">Earning</a></li>
+  </ul>
+   <form class="tab-contents" action="{% url 'employee_create' %}" method="POST">
+    {% csrf_token %}
+    <fieldset class="tab active-tab" id="employee">
+      <div>
+        {{ employee_form.employment_type.label_tag }}
+        {{ employee_form.employment_type }}
+        <div>
+          <label>Hire Period</label>
+          {{ employee_form.hire_date }}
+          {{ employee_form.employment_end_date }}
         </div>
       </div>
-      <div class="row">
-        <i>IDS</i>
-        <div class="col-6">
-          <div class="input-group">
-            {{ employee_form.employee_id_number|add_class:"form-control" }}
-            <div class="input-group-append">
-              <button class="btn btn-outline-secondary" type="button">Generate</button>
-            </div>
+      <div>
+        <label>Identifier: </label>
+        {{ employee_form.employee_id_number }}<button class="btn" id="employee-id-gen" type="button">Generate</button>
+        {{ employee_form.social_security_number}}
+        {{ employee_form.tin }}
+      </div>
+      <div id="legal-name">
+        <label>Legal Name: </label>
+        {{ employee_form.first_name }}
+        {{ employee_form.middle_name }}
+        {{ employee_form.last_name }}
+        {{ employee_form.maiden_name }}
+      </div>
+      <div>
+        {{ employee_form.gender.label_tag }}
+        {{ employee_form.gender }}
+      </div>
+      <div>
+        {{ employee_form.marital_status.label_tag }}
+        {{ employee_form.marital_status }}
+      </div>
+      <div>
+        {{ employee_form.date_of_birth.label_tag }}
+        {{ employee_form.date_of_birth }}
+        <span>Must be 18 or older</span>
+      </div>
+      {{ employee_form.nationality.label_tag }}
+      {{ employee_form.nationality }}
+
+    </fieldset>
+
+      <fieldset class="tab" id="address">
+        {{ address_formset.management_form }}
+        <div id="contacts">
+          <div>
+            <label>Personal: </label>
+            {{ employee_form.personal_phone }}
+            {{ employee_form.personal_email }}
+          </div>
+          <div>
+            <label>Work: </label>
+            {{ employee_form.work_phone }}
+            {{ employee_form.work_email }}
           </div>
         </div>
-        <div class="col-3">
-          {{ employee_form.social_security_number|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.tin|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <i>Name</i>
-        <div class="col-3">
-          {{ employee_form.first_name|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.middle_name|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.last_name|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.maiden_name|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <div class="col-3">
-          {{ employee_form.gender.label_tag }}
-          {{ employee_form.gender|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.marital_status.label_tag }}
-          {{ employee_form.marital_status|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.date_of_birth.label_tag }}
-          {{ employee_form.date_of_birth|add_class:"form-control" }}
-        </div>
-        <div class="col-3">
-          {{ employee_form.nationality.label_tag }}
-          {{ employee_form.nationality|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <i>Full Name</i>
-        <div class="col-6">
-          {{ employee_form.personal_phone|add_class:"form-control" }}
-        </div>
-        <div class="col-6">
-          {{ employee_form.personal_email|add_class:"form-control" }}
-        </div>
-        <i>Work</i>
-        <div class="col-6">
-          {{ employee_form.work_phone|add_class:"form-control" }}
-        </div>
-        <div class="col-6">
-          {{ employee_form.work_email|add_class:"form-control" }}
-        </div>
-      </div>
-    </fieldset>
-    <fieldset id="address">
-      {{ address_formset.management_form }}
-      <legend>Address</legend>
-
-      {% for formset in address_formset %}
-      <div class="row">
-        <div class="col-6">
+        <hr>
+        {% for formset in address_formset %}
+        <div id="id_address-wrapper-{{ forloop.counter0 }}">
           {{ formset.label.label_tag }}
-          {{ formset.label|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <div class="col-6">
+          {{ formset.label }}
+          <div>
           {{ formset.address_one.label_tag }}
-          {{ formset.address_one|add_class:"form-control" }}
-        </div>
-        <div class="col-6">
+          {{ formset.address_one }}
+          </div>
+          <div>
           {{ formset.address_two.label_tag }}
-          {{ formset.address_two|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <div class="col-6">
-          {{ formset.state.label_tag }}
-          {{ formset.state|add_class:"form-control" }}
-        </div>
-        <div class="col-6">
+          {{ formset.address_two }}
+          </div>
+          <div>
           {{ formset.city.label_tag }}
-          {{ formset.city|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <div class="col-6">
+          {{ formset.city }}
+          </div>
+          <div>
+          {{ formset.state.label_tag }}
+          {{ formset.state }}
           {{ formset.country.label_tag }}
-          {{ formset.country|add_class:"form-control" }}
-        </div>
-      </div>
-      <br>
-      <div class="row">
-        <div class="col-6">
+          {{ formset.country }}
+          </div>
           <a href="#" id="add-address-line">Add Another Address</a>
         </div>
-      </div>
-      {% endfor %}
-    </fieldset>
+        {% endfor %}
+      </fieldset>
+      {% include "_emp_position_form.html" %}
 
-    <fieldset id="employee-position">
-      <legend>Position</legend>
-      <div class="row">
-        <div class="col-4">
-          {{ employee_position_form.pay_period.label_tag }}
-          {{ employee_position_form.pay_period|add_class:"form-control" }}
-        </div>
-        <div class="col-4">
-          {{ employee_position_form.position_date.label_tag }}
-          {{ employee_position_form.position_date|add_class:"form-control" }}
-        </div>
-      </div>
-      <div class="row">
-        <div class="col-4">
-          {{ employee_position_form.position.label_tag }}
-          {{ employee_position_form.position|add_class:"form-control" }}
-        </div>
-        <div class="col-4">
-          <br>
-          <!-- Button HTML (to Trigger Modal) -->
-          <a href="#myModal" data-toggle="modal" id="myInput">Create Position</a>
-        </div>
-
-      </div>
-      <div class="row">
-        <div class="col-4">
-          {{ employee_position_form.grade.label_tag }}
-          {{ employee_position_form.grade|add_class:"form-control" }}
-        </div>
-        <div class="col-8">
-          {{ employee_position_form.negotiated_salary.label_tag }}
-          <div class="input-group">
-            <span class="input-group-text">$</span>
-            {{ employee_position_form.negotiated_salary|add_class:"form-control" }}
-          </div>
-        </div>
-      </div>
-    </fieldset>
-
-    <fieldset id="employee-earning">
-      {{ employee_position_earns_formset.management_form }}
-      <legend>Earning</legend>
-      {% for formset in employee_position_earns_formset %}
-      <div class="row">
-        <div class="input-group col-12">
-          <span class="input-group-text"> {{ forloop.counter }}</span>
-          {{ formset.earning|add_class:"form-control" }}
+      <fieldset class="tab" id="employee-earning">
+        {{ employee_position_earns_formset.management_form }}
+        {% for formset in employee_position_earns_formset %}
+        <div id="id_earning-wrapper-{{ forloop.counter0 }}">
+            <span class="earning-line-num"> {{ forloop.counter }}</span>
+          {{ formset.earning }}
           <span class="input-group-text">$</span>
-          {{ formset.amount|add_class:"form-control" }}
+          {{ formset.amount }}
         </div>
-      </div>
-      {% endfor %}
-      <div class="row">
-        <div class="col-12">
-          <a href="#">Add Another</a>
-        </div>
-      </div>
-    </fieldset>
-    <br>
-    <div class="row">
-      <div class="col-6">
+        {% endfor %}
+        <a href="#" id="add-earning-line">Add Another</a>
+        <br>
         <button type="button" class="btn btn-primary form-control">Cancel</button>
-      </div>
-      <div class="col-6">
         <button type="submit" class="btn btn-primary form-control">Create</button>
-      </div>
-    </div>
-</form>
-
-<!-- Modal HTML -->
-<div id="myModal" class="modal fade" tabindex="-1">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">New Position</h5>
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-      </div>
-      <form>
-        <div class="modal-body">
-          {{ job_form.department.label_tag }}
-          {{ job_form.department|add_class:"form-control" }}
-          <a href="#">Add Deartment</a>
-          {{ job_form.grade.label_tag }}
-          {{ job_form.grade|add_class:"form-control" }}
-          {{ job_form.position.label_tag }}
-          {{ job_form.position|add_class:"form-control" }}
-          {{ job_form.pay_period.label_tag }}
-          {{ job_form.pay_period|add_class:"form-control" }}
-          {{ job_form.base_salary.label_tag }}
-        <div class="input-group">
-          {{ job_form.base_salary|add_class:"form-control" }}
-        </div>
-
-          {{ job_form.job_description.label_tag }}
-          {{ job_form.job_description|add_class:"form-control" }}
-          
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save changes</button>
-        </div>
-      </form>
-    </div>
-  </div>
+      </fieldset>
+  </form>
 </div>
+{% comment %}{% include '_modal_emp_position.html'%}{% endcomment %}
 {% endblock %}
 {% load static %}
 {% block scripts %}

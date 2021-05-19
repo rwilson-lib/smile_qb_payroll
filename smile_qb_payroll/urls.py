@@ -15,18 +15,19 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+
 # from django.conf import settings
 # from django.conf.urls.static import static
 from employee import urls
-from payroll  import urls
-from country  import urls
+from payroll import urls
+from country import urls
 
 from . import views
 
 urlpatterns = [
-    path('', views.index, name='index'),
-    path('admin/', admin.site.urls),
-    path('employee/', include('employee.urls')),
-    path('payroll/', include('payroll.urls')),
-    path('country/', include('country.urls')),
-] # + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    path("", views.index, name="index"),
+    path("admin/", admin.site.urls),
+    path("employee/", include("employee.urls")),
+    path("payroll/", include("payroll.urls")),
+    path("country/", include("country.urls")),
+]  # + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

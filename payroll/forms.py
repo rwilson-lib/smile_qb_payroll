@@ -1,7 +1,13 @@
 from django import forms
 from django.forms import ModelForm
 
-from .models import Payroll
+from .models import (
+    Payroll,
+    ExchangeRate,
+    Credit,
+    CreditPaymentPlan,
+    EmployeeTaxContribution,
+)
 
 
 # Disable all the unused-variable violations in this function
@@ -10,6 +16,12 @@ class PayrollForm(ModelForm):
     class Meta:
         model = Payroll
         exclude = ["id", "status"]
+
+
+class ExchangeRateForm(ModelForm):
+    class Meta:
+        model = ExchangeRate
+        exclude = ["id"]
 
 
 class AddEmployeeForm(forms.Form):
@@ -27,6 +39,8 @@ class AddEmployeeForm(forms.Form):
     currency = forms.CharField(label="", required=False)
     pay_period = forms.CharField(label="", required=False)
 
+    # Disable all the no-member violations in this function
+    # pylint: disable=no-member
     employee_id_number.widget.attrs["class"] = "employee-id-number"
     social_security_number.widget.attrs["class"] = "employee-social_security_number"
     tin.widget.attrs["class"] = "employee-tin"
@@ -38,3 +52,21 @@ class AddEmployeeForm(forms.Form):
     salary.widget.attrs["readonly"] = "readonly"
     currency.widget.attrs["readonly"] = "readonly"
     pay_period.widget.attrs["readonly"] = "readonly"
+
+
+class CreditForm(forms.ModelForm):
+    class Meta:
+        model = Credit
+        exclude = ["id"]
+
+
+class CreditPaymentPlanForm(forms.ModelForm):
+    class Meta:
+        model = CreditPaymentPlan
+        exclude = ["id", "deductable", "status"]
+
+
+class EmployeeTaxContributionForm(forms.ModelForm):
+    class Meta:
+        model = EmployeeTaxContribution
+        exclude = ["id"]

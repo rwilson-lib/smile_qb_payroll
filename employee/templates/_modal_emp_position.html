@@ -1,0 +1,40 @@
+{% load widget_tweaks %}
+<!-- Modal HTML -->
+<div id="employeePositionModal" class="modal fade" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New Position</h5>
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+      </div>
+      <form>
+        <div class="modal-body">
+          {{ job_form.department.label_tag }}
+          {{ job_form.department|add_class:"form-control" }}
+          <!-- Button HTML (to Trigger Modal) -->
+          <a href="#departmentModal" data-toggle="modal" id="myInput">Create Deartment</a>
+          {{ job_form.grade.label_tag }}
+          {{ job_form.grade|add_class:"form-control" }}
+          {{ job_form.position.label_tag }}
+          {{ job_form.position|add_class:"form-control" }}
+          {{ job_form.pay_period.label_tag }}
+          {{ job_form.pay_period|add_class:"form-control" }}
+          {{ job_form.base_salary.label_tag }}
+        <div class="input-group">
+          {{ job_form.base_salary|add_class:"form-control" }}
+        </div>
+
+          {{ job_form.job_description.label_tag }}
+          {{ job_form.job_description|add_class:"form-control" }}
+          
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% include "_modal_department.html" %}

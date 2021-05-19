@@ -1,5 +1,146 @@
-{% extends 'base.html'%}
+{% extends 'sidebar.html' %}
 {% block title %}Welcome{% endblock %}
-{% block content %}
-  <h1>Landing Page</h1>
+
+{% block display %}
+  <h1>Dashboard</h1>
+  <div id="id_create-payroll-wizard">
+    <div class="step step-1" id="id_from-selection">
+      <p>Create from:</p>
+      <div>
+        <input type="radio" id="id_from-template" name="create-options" value="0">
+        <label for="id_from-template">From Template</label>
+      </div>
+
+      <div>
+        <input type="radio" id="id_from-exists" name="create-options" value="1">
+        <label for="id_from-exists">From Existing Payroll</label>
+      </div>
+
+      <div>
+        <input type="radio" id="id_from-as-new" name="create-options" value="2">
+        <label for="id_form-as-new">New Payroll</label>
+      </div>
+ 
+    </div>
+    <div class="step step-2"></div>
+    <div class="step step-3" id="id_preview">
+    </div>
+    <div class="step step-4">Step Four</div>
+  </div>
+    <script>
+      var fromSelection = $("#id_from-selection");
+      var itemsPreview = $("#id_preview");
+      itemsPreview.append(
+      `<p><span>Income Type:</span> <i>Bi-Weekly</i></p>
+       <p><span>Currency:</span> <i>USD</i></p>
+       <p><span>Tax Revision:</span> <i>1.0.1<i/></p>
+       <p><span>Date:</span> <i>Feb-10-2020</i></p>
+       <p><span>Rate:</span> <i>None</i></p>
+       <p><span>Line Count:</span> <i>$1230</i></p>
+       <p><a href="#">Preview &amp; Edit</a></p>
+     `);
+      fromSelection.on("change", (event) => {
+        let val = event.target.value
+        let dia = $(".step-2");
+        if (val == 0){
+          dia.children().remove()
+          dia.append(
+          `<div>
+            <label for='template'>Select template: </label>
+            <select name='template'>
+              <option value='10'>From</option>
+              <option value='11'>This</option>
+              <option value='12'>His</option>
+            </select>
+           </div>
+          <div>
+            <label for='payroll-date'>Date: </label>
+            <input type='date' name='payroll-date'>
+          </div>`)
+        }
+        else if (val == 1){
+          dia.children().remove()
+          dia.append(
+          `<div>
+            <label for='temp-number'>Enter the payroll ID: </label>
+            <input type='text' name='temp-number'>
+          </div>
+          <div>
+            <label for='payroll-date'>Date: </label>
+            <input type='date' name='payroll-date'>
+          </div>`);
+        }
+        else if (val == 2){
+          dia.children().remove()
+          dia.append(
+          `<div>
+             <label for='temp-number'>Please select template: </label>
+             <select name='temp-number'>
+             </select>
+           </div>`);
+        }
+        });
+
+        
+        $( function() {
+          let dataStore = {}
+          let steps = $(".step");
+          let counter = 0;
+          steps.hide();
+          let initial = $(steps[counter]);
+          initial.show();
+          initial.addClass("active-dialog");
+          $( "#id_create-payroll-wizard" ).dialog({
+              modal: true,
+              width: 600,
+              height: 300,
+              title: "Dialog Title"
+          });
+          var buttons = $( "#id_create-payroll-wizard" ).dialog( "option", "buttons" );
+          $( "#id_create-payroll-wizard" ).dialog( "option", "buttons", 
+              [
+                {
+                  text: "Prev",
+                  icon: "ui-icon-heart",
+                  click: function(event) {
+                          if (counter > 0){
+                            let prev = $(steps[counter]);
+                            delete dataStore[counter];
+                            prev.hide();
+                            prev.removeClass("active-dialog");
+                            counter--
+                            let current = $(steps[counter]);
+                            current.show();
+                            current.addClass("active-dialog");
+                            console.log(dataStore)
+                        }
+                  }
+                },
+                {
+                  text: "Next",
+                  icon: "ui-icon-heart",
+                  click: function(event) {
+                          if (counter >= 0 && counter < steps.length){
+                            let prev = $(steps[counter]);
+                            dataStore[counter] = $(".active-dialog input, select").serializeArray() 
+                            prev.hide();
+                            prev.removeClass("active-dialog");
+                            counter++
+                            let current = $(steps[counter]);
+                            current.show();
+                            current.addClass("active-dialog");
+                          }
+                          console.log(dataStore)
+
+                          if(counter == steps.length){
+                            $( this ).dialog( "close" ); 
+                          }
+                  }
+                }
+              ]
+          );
+
+        });
+  </script>
+    </script>
 {% endblock %}

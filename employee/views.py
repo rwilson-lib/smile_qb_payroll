@@ -6,8 +6,15 @@ from django.forms import inlineformset_factory, formset_factory
 from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 
-from .forms import EmployeeForm, EmployeePositionForm, EarningForm, AddressForm, JobForm
-from .models import Address, Employee, EmployeePosition, Earning, Job
+from .forms import (
+    EmployeeForm,
+    EmployeePositionForm,
+    EarningForm,
+    AddressForm,
+    JobForm,
+    DepartmentForm,
+)
+from .models import Address, Employee, EmployeePosition, Earning, Job, Department
 
 
 # Disable all the unused-variable violations in this function
@@ -40,9 +47,13 @@ def home(request):
 def employee_get(request, pk):
     template = "employee_detail.html"
     employee = get_object_or_404(Employee, pk=pk)
+    employee_position_form = EmployeePositionForm(instance=EmployeePosition())
+    job_form = JobForm(instance=Job())
 
     context = {
         "employee": employee,
+        "employee_position_form": employee_position_form,
+        "job_form": job_form,
     }
     return render(request, template, context)
 
@@ -95,6 +106,15 @@ def employee_create(request):
         context["employee_form"] = employee_form
         context["address_formset"] = address_formset
         context["employee_position_form"] = employee_position_form
+    return render(request, template, context)
+
+
+def job_create(request):
+    template = "job_create.html"
+    job_form = JobForm()
+    department_form = DepartmentForm()
+    context = {"job_form": job_form, "department_form": department_form}
+
     return render(request, template, context)
 
 

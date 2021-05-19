@@ -1,138 +1,68 @@
-{% extends 'base.html' %}
+{% extends 'sidebar.html' %}
 {% block title %}{% endblock %}
 {% block head %}
-<style type="text/css">
-    tr th {
-      cursor: pointer;
-    }
-</style>
 {% endblock %}
-{% block content %}    
-  <body>
+{% block display %}    
     <a href="{% url 'employee_create' %}">New Employee</a>
     <a href="{% url 'payroll_create' %}" id="add-to-payroll">add to payroll</a>
-    <input type="hidden" name="employee-list" id="id_employee-list" value="{% url 'employee_list' %}">
-    <div id='id_content'>
-    </div>
-      {% comment %}<tr id="employee-list-table-head">{% endcomment %}
-        {% comment %}<th><input type="checkbox" name="select-all-employees" id="id_select-all-employees"></th>{% endcomment %}
-        {% comment %}<th>Emp. Id</th>{% endcomment %}
-        {% comment %}<th>First Name</th>{% endcomment %}
-        {% comment %}<th>Middle Name</th>{% endcomment %}
-        {% comment %}<th>Last Name</th>{% endcomment %}
-        {% comment %}<th>Gender</th>{% endcomment %}
-        {% comment %}<th>Marital Status</th>{% endcomment %}
-        {% comment %}<th>Age</th>{% endcomment %}
-        {% comment %}<th>Date Hire</th>{% endcomment %}
-        {% comment %}<th>Personal Phone </th>{% endcomment %}
-        {% comment %}<th>Personal Email</th>{% endcomment %}
-        {% comment %}<th>Work Phone</th>{% endcomment %}
-        {% comment %}<th>Work Email</th>{% endcomment %}
-        {% comment %}<th>Nationality</th>{% endcomment %}
-        {% comment %}<th>Status</th>{% endcomment %}
-      {% comment %}</tr>{% endcomment %}
-        {% comment %}{% for employee in employees %}{% endcomment %}
-      {% comment %}<tr>{% endcomment %}
-        {% comment %}<td>{% endcomment %}
-          {% comment %}<input data-id={{ employee.id }} type="checkbox" name="select-employee-{{ employee.id }}" id="id_select-employee-{{ employee.id }}"></td>{% endcomment %}
-        {% comment %}<td data-id={{ employee.id }}> {{ employee.employee_id_number }} </td>{% endcomment %}
-        {% comment %}<td>{{ employee.first_name }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.middle_name }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.last_name }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.gender }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.marital_status }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.age }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.hire_date }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.personal_phone }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.personal_email }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.work_phone }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.work_email }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.nationality }}</td>{% endcomment %}
-        {% comment %}<td>{{ employee.active }}</td>{% endcomment %}
-        {% comment %}{% empty %}{% endcomment %}
-          {% comment %}<li>Sorry, no athletes in this list.</li>{% endcomment %}
-      {% comment %}</tr>{% endcomment %}
-      {% comment %}{% endfor %}{% endcomment %}
-    </table>
   {{employees|json_script:'employees-data'}}
+  <div id="employee-table">
+    <table id="example" class="display">
+        <thead></thead>
+        <tfoot>
+            <tr></tr>
+        </tfoot>
+    </table>
+  </div>
 {% endblock %}
+
 {% block scripts %}
-    <script type="text/javascript">
-      'use strict';
-      let employeeListTableHeader;
-      let selectAllChechBox;
-      let allEmployeeCheckboxes;
-      let addToPayroll = $("#add-to-payroll");
-      let fields = [];
-      let checkedItems;
-      let post_url = document.querySelector("#add-to-payroll").getAttribute('href');
 
-      let employeesData = $.parseJSON($('#employees-data').text());
-      let content = $('#id_content');
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/pdfmake.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.36/vfs_fonts.js"></script>
+<script type="text/javascript" src="https://cdn.datatables.net/v/bs4/jszip-2.5.0/dt-1.10.24/af-2.3.5/b-1.7.0/b-colvis-1.7.0/b-html5-1.7.0/b-print-1.7.0/cr-1.5.3/date-1.0.3/fc-3.3.2/fh-3.1.8/kt-2.6.1/r-2.2.7/rg-1.1.2/rr-1.2.7/sc-2.0.3/sb-1.0.1/sp-1.2.2/sl-1.3.3/datatables.min.js"></script>
 
-
-      function renderTable(data, location){
-        let table = "<table>"
-        let tableHeader = ["employee_id_number", "employment_type", "employment_end_date", "hire_date", "first_name", "middle_name", "last_name", "gender", "marital_status", "date_of_birth", "age", "personal_email", "work_email", "personal_phone", "work_phone", "nationality", "active"]
+<script>
+  function renderEmpDetailTable(table, fields){
+    let data = $.parseJSON($("#employees-data")[0].textContent);
+    let tableHead = $("#example thead")
     
-        let thead = '<tr id="employee-list-table-head">'
-        thead += `<th><input type="checkbox" name="select-all-employees" id="id_select-all-employees"></th>`
-        tableHeader.forEach((item) => {
-          if (item === 'employee_id_number')
-            thead += `<th data-name="${item}">Emp Id</th>`;
-          else if (item === 'employment_type')
-          thead += `<th data-name="${item}">Emp Type</th>`;
-          else
-            thead += `<th data-name="${item}">${item}</th>`;
-        });
-        thead += '</tr>'
-        table += thead
+    let keys = Object.keys(data[0])
+    let tableHeader = keys.map(key => { 
+      let words = key.split('_').map(
+        key => key[0].toUpperCase() + key.substr(1, key.length)
+      )
+      return `<td class='${key}'>${words.join("_")}</td>`; 
+    }).join("\n");
 
-        for (let i = 0; i < data.length; i++){
-          let tableData = ''
-          tableData += `<td><input type="checkbox" value="${data[i].id}"></td>`
-          tableHeader.forEach((key) => {
-            tableData += `<td>${data[i][key]}</td>`
-          });
-          let tableRow = `<tr>${tableData}</tr>`
-          table += tableRow;
+    function processDataColumn(columns, key, renderFun=null){
+        let cols = []
+        for(let i = 0; i < columns.length; i++){
+          if (columns[i].trim() === key)
+            cols.push({ "data": columns[i], "className": columns[i], "render": renderFun })
+          else 
+            cols.push({ "data": columns[i], "className": columns[i]})
         }
-        table += '</table>'
-        return table
+        return cols
       }
 
-        let table = renderTable(employeesData);
-        content.append(table)
+      render = function(data, type, row, meta){
+                if(type === 'display')
+                  data = '<a href="' + row["id"] + '">' + data + '</a>';
 
-      employeeListTableHeader = $("#employee-list-table-head")
-      employeeListTableHeader.on('dblclick', function(event){
-        let field = event.target.getAttribute('data-name')
-        employeesData.sort( (a, b, key=field) => { 
-          a = a[key];
-          b = b[key];
-          if (a < b) {
-            return -1;
-          }
-          if (a > b) {
-            return 1;
-          }
-            return 0;
-        });
-        var c = $('#id_content table').remove();
-        let table = renderTable(employeesData);
-        content.append(table)
-      });
+                return data;
+             }
+      let columns = processDataColumn(keys, "employee_id_number", render);
 
-      selectAllChechBox = $("#id_select-all-employees");
-      selectAllChechBox.on("change", function(event){
-        if (event.target.checked) $('input:checkbox').attr('checked',true);
-        else $('input:checkbox').attr('checked',false);
+      tableHead.append(`<tr>${tableHeader}</tr>`)
+      table.DataTable({ 
+          data: data,
+          columns: columns
       });
+  }
 
-      addToPayroll.on("click", function(e){
-        e.preventDefault();
-        checkedItems = document.querySelectorAll('tr td :checked');
-        console.log(checkedItems);
-      });
-    </script>
+  let table = $("#example")
+  renderEmpDetailTable(table, [])
+</script>
+    
 {% endblock %}

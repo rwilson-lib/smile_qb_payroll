@@ -28,6 +28,7 @@ urlpatterns = [
         views.payroll_employee_get,
         name="payroll_employee_detail",
     ),
+    path("deduction/create", views.deduction_create, name="deduction_create"),
     path("<int:id>/deduction", views.payroll_deduction, name="payroll_deduction"),
     path("<int:id>/extras", views.payroll_extra, name="payroll_extra"),
 ]

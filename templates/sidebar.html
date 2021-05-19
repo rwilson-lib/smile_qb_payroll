@@ -1,0 +1,47 @@
+{% extends 'base.html'%}
+{% block content %}
+<div class="nav">
+  <span>WELCOME &nbsp;</span><span>*USER NAME* &nbsp;</span> <a href="#">LOG OUT</a>
+  <i class="fa fa-bell"></i>
+</div>
+<div class="main">
+  <div class="side-bar">
+    <div>
+      <i>LOGO GOES HERE</i>
+    </div>
+    <ul>
+      <li>
+        <i class="fa fa-area-chart"></i>
+        <a href="{% url 'index' %}">Dashboard</a>
+      </li>
+      <li>
+        <i class="fa fa-money"></i>
+        <a href="{% url 'payroll_list' %}">Payroll</a>
+      </li>
+      <li>
+        <i class="fa fa-users"></i>
+        <a href="{% url 'employee_list' %}">Staffs</a>
+      </li>
+      <li>
+        <i class="fa fa-users"></i>
+        <a href="{% url 'deduction_create' %}">Credit</a>
+      </li>
+      <li>
+        <i class="fa fa-users"></i>
+        <a href="#">Tax and Contribution</a>
+      </li>
+      <li>
+        <i class="fa fa-cogs"></i>
+        <a href="#">Reports</a>
+      </li>
+      <li>
+        <i class="fa fa-cogs"></i>
+        <a href="#">Settings</a>
+      </li>
+    </ul>
+  </div>
+  <div class="main-content">
+    {% block display %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

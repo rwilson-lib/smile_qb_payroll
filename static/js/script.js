@@ -5,6 +5,22 @@ let createEarningBtn = $("#add-earning-line");
 let employeeIDGeneratorBtn = $("#employee-id-gen");
 
 let dateInputs = $("input[name*=date")
+let tabMenu = $(".tab-menu a");
+
+
+tabMenu.click((event) => {
+    event.preventDefault();
+    let activeMenu = $(".active-menu");
+    activeMenu.removeClass('active-menu');
+    let t = $(event.target);
+    t.addClass("active-menu");
+    let m = $(t.attr("href"));
+    if (m.length) {
+        let activeTab = $(".active-tab");
+        activeTab.removeClass('active-tab');
+        m.addClass("active-tab");
+    }
+});
 
 createAddressBtn.click((event) => {
     event.preventDefault();
@@ -38,11 +54,12 @@ employeeIDGeneratorBtn.click((event) => {
     input.val("20")
 });
 
-
 dateInputs.attr('autocomplete', 'off');
 dateInputs.datepicker({
     dateFormat: "yy-mm-dd"
 })
+
+
 
 
 //function processSelection() {

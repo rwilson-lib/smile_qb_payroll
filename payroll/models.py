@@ -7,24 +7,40 @@ from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import CurrencyField, MoneyField
 
 from employee.models import Employee, EmployeePosition
-from payroll.income import Income, IncomeType, PayPeriod
+from accounting.models import Account, LineItem
 from tax.models import PayBy, Revision, TaxContribution
+from payroll.income import Income, IncomeType, PayPeriod
 from tax.tax_calc import test_tax
 from utils import create_money
+
+
+def get_default_credit_account():
+    item = 1
+    return item
+
+
+def get_default_currency():
+    currency = "LRD"
+    return currency
+
+
+def get_default_secondary_currency():
+    currency = "USD"
+    return currency
 
 
 class ExchangeRate(models.Model):
     foreign = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
     local = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
     date = models.DateField(default=timezone.now)
 
@@ -51,12 +67,15 @@ class Payroll(models.Model):
         POSTED = 1
         CLOSE = 0
 
+    currency = CurrencyField(default=get_default_currency)
     pay_period = models.PositiveIntegerField(
         choices=PayPeriod.choices, default=PayPeriod.MONTHLY
     )
     date = models.DateField()
     tax_revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
-    rate = models.ForeignKey(ExchangeRate, on_delete=models.CASCADE)
+    rate = models.ForeignKey(
+        ExchangeRate, on_delete=models.CASCADE, null=True, blank=True
+    )
     status = models.IntegerField(choices=Status.choices, default=Status.CREATED)
 
     def __str__(self):
@@ -69,8 +88,8 @@ class Credit(models.Model):
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
     amount_currency = CurrencyField()
     interest_rate = models.DecimalField(
@@ -78,6 +97,9 @@ class Credit(models.Model):
     )
     date = models.DateField(default=timezone.now)
     payment_start_date = models.DateField()
+    account = models.ForeignKey(
+        Account, on_delete=models.CASCADE, default=get_default_credit_account
+    )
     completed = models.BooleanField(default=False)
 
     @classmethod
@@ -161,7 +183,7 @@ class CreditPaymentPlan(models.Model):
     def deduct(self):
         if self.credit.completed:
             return None
-        default = create_money("0.00", "USD")
+        default = create_money("0.00", get_default_currency())
         balance = self.credit.balance
         value = self.credit.amount * self.percent
         if balance <= default:
@@ -173,63 +195,62 @@ class CreditPaymentPlan(models.Model):
     @property
     def total_paid_on_plan(self):
         total = self.payrolldeduction_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
-        return create_money(total, "USD")
+        return create_money(total, get_default_currency())
 
     def __str__(self):
         return f"{self.name}, {self.credit}, {self.percent}"
 
 
 class PayrollEmployee(models.Model):
-
     payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE)
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     gross_income = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     income_tax = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     net_income = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     deductions = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     extra_income = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     earnings = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
     take_home = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
         editable=False,
     )
 
@@ -324,8 +345,8 @@ class PayrollEmployee(models.Model):
 
     def _total_deductions(self):
         total_deductions = {
-            "tax_n_contribution": create_money(0.00, "USD"),
-            "deduction": create_money(0.00, "USD"),
+            "tax_n_contribution": create_money(0.00, get_default_currency()),
+            "deduction": create_money(0.00, get_default_currency()),
         }
 
         for contrib_tax in self._calc_taxes():
@@ -386,14 +407,26 @@ class PayrollEmployee(models.Model):
         ordering = ["-payroll"]
 
 
-class PayrollExtra(models.Model):
-    emp_payroll = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
-    extra = models.CharField(max_length=25)
+class PayrollEmployeeLineItem(models.Model):
+    payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
+    payroll_line_item = models.ForeignKey(LineItem, on_delete=models.CASCADE)
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
+    )
+
+
+# mark for delete
+class Addition(models.Model):
+    emp_payroll = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
+    item = models.ForeignKey(LineItem, on_delete=models.CASCADE)
+    amount = MoneyField(
+        max_digits=14,
+        decimal_places=2,
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
 
     @classmethod
@@ -426,8 +459,8 @@ class PayrollDeduction(models.Model):
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
 
     def mark_as_completed(self):
@@ -493,8 +526,8 @@ class TaxContributionCollector(models.Model):
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
+        default=create_money("0.00", get_default_currency()),
+        default_currency=get_default_currency(),
     )
 
     def __str__(self):
@@ -504,8 +537,8 @@ class TaxContributionCollector(models.Model):
 pre_save.connect(PayrollEmployee.pre_create, sender=PayrollEmployee)
 post_save.connect(PayrollEmployee.post_create_or_update, sender=PayrollEmployee)
 
-post_save.connect(PayrollExtra.post_create_or_update, sender=PayrollExtra)
-post_delete.connect(PayrollExtra.post_delete, sender=PayrollExtra)
+post_save.connect(Addition.post_create_or_update, sender=Addition)
+post_delete.connect(Addition.post_delete, sender=Addition)
 
 post_save.connect(PayrollDeduction.post_create_or_update, sender=PayrollDeduction)
 post_delete.connect(PayrollDeduction.post_delete, sender=PayrollDeduction)

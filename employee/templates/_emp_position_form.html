@@ -1,0 +1,26 @@
+{% load widget_tweaks %}
+<fieldset id="employee-position">
+  <div>
+    {{ employee_position_form.pay_period.label_tag }}
+    {{ employee_position_form.pay_period }}
+  </div>
+  <div>
+    {{ employee_position_form.position_date.label_tag }}
+    {{ employee_position_form.position_date }}
+  </div>
+  <div>
+    {{ employee_position_form.position.label_tag }}
+    {{ employee_position_form.position }}
+    <!-- Button HTML (to Trigger Modal) -->
+    <a href="#employeePositionModal" data-toggle="modal" id="id_employee-postion">Create Position</a>
+  </div>
+  <div>
+    {{ employee_position_form.grade.label_tag }}
+    {{ employee_position_form.grade }}
+  </div>
+  <div>
+    {{ employee_position_form.negotiated_salary.label_tag }}
+    <span class="input-group-text">$</span>
+    {{ employee_position_form.negotiated_salary }}
+  </div>
+</fieldset>
