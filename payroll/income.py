@@ -4,6 +4,7 @@ from functools import reduce
 from django.db import models
 from djmoney.money import Money
 from enum import Enum
+from copy import deepcopy
 
 
 class PayPeriod(models.IntegerChoices):
@@ -43,7 +44,7 @@ TABLE = (
 
 
 def get_convertion_table(**kwargs):
-    LOOKUP_TABLE_LIST = list(TABLE)
+    LOOKUP_TABLE_LIST = deepcopy(TABLE)
 
     def change_unit_value(unit, value):
         for item in LOOKUP_TABLE_LIST:
@@ -81,7 +82,7 @@ def get_convertion_table(**kwargs):
     return LOOKUP_TABLE_LIST
 
 
-def convert(from_unit, value, to_unit):
+def convert(from_unit, value, to_unit, **kwargs):
 
     if from_unit == to_unit:
         return value
@@ -117,12 +118,12 @@ def convert(from_unit, value, to_unit):
             if to_unit == PayPeriod.QUARTERLY:
                 return (convertion_factor(from_unit, PayPeriod.ANNUALLY) * value) * 0.5
 
-    return convertion_factor(from_unit, to_unit) * value
+    return convertion_factor(from_unit, to_unit, **kwargs) * value
 
 
-def convertion_factor(from_unit, to_unit):
+def convertion_factor(from_unit, to_unit, **kwargs):
 
-    LOOKUP_TABLE_LIST = list(TABLE)
+    LOOKUP_TABLE_LIST = get_convertion_table(**kwargs)
 
     if to_unit.value > from_unit.value:
         include = False
@@ -169,8 +170,8 @@ class Income:
         self.pay_period = pay_period
         self.money = money
 
-    def convert_to(self, to_unit):
-        value = convert(self.pay_period, self.money, to_unit)
+    def convert_to(self, to_unit, **kwargs):
+        value = convert(self.pay_period, self.money, to_unit, **kwargs)
         return Income(to_unit, value)
 
     def __add__(self, value):
