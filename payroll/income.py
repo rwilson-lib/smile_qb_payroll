@@ -3,6 +3,7 @@ from functools import reduce
 
 from django.db import models
 from djmoney.money import Money
+from enum import Enum
 
 
 class PayPeriod(models.IntegerChoices):
@@ -25,15 +26,63 @@ class IncomeType(models.IntegerChoices):
     OTHER = 6
 
 
+class Unit(Enum):
+    HOUR = "HOURLY"
+    DAY = "DAILY"
+    WEEK = "WEEKLY"
+    MONTH = "MONTHLY"
+    YEAR = "ANNUALLY"
+
+
 TABLE = (
-    OrderedDict([("HOURLY", 24), ("DAILY", 1)]),
-    OrderedDict([("DAILY", 7), ("WEEKLY", 1)]),
-    OrderedDict([("WEEKLY", 4), ("MONTHLY", 1)]),
-    OrderedDict([("MONTHLY", 12), ("ANNUALLY", 1)]),
+    OrderedDict([(Unit.HOUR.value, 24), (Unit.DAY.value, 1)]),
+    OrderedDict([(Unit.DAY.value, 7), (Unit.WEEK.value, 1)]),
+    OrderedDict([(Unit.WEEK.value, 4), (Unit.MONTH.value, 1)]),
+    OrderedDict([(Unit.MONTH.value, 12), (Unit.YEAR.value, 1)]),
 )
 
 
+def get_convertion_table(**kwargs):
+    LOOKUP_TABLE_LIST = list(TABLE)
+
+    def change_unit_value(unit, value):
+        for item in LOOKUP_TABLE_LIST:
+            if not type(unit) is Unit:
+                raise TypeError("unit must be a Unit")
+
+            if unit == Unit.HOUR:
+                if not (value >= 1 and value <= 24):
+                    raise ValueError("HOUR value must be between 1 and 24")
+                if unit.value == list(item.keys())[0]:
+                    item[unit.value] = value
+
+            elif unit == Unit.DAY:
+                if not (value >= 1 and value <= 7):
+                    raise ValueError("DAY value must be between 1 and 7")
+                if unit.value == list(item.keys())[0]:
+                    item[unit.value] = value
+            elif unit == Unit.WEEK:
+                if not (value >= 1 and value <= 4):
+                    raise ValueError("WEEK value must be between 1 and 4")
+                if unit.value == list(item.keys())[0]:
+                    item[unit.value] = value
+            elif unit == Unit.MONTH:
+                if not (value >= 1 and value <= 12):
+                    raise ValueError("MONTH value must be between 1 and 12")
+                if unit.value == list(item.keys())[0]:
+                    item[unit.value] = value
+            else:
+                raise ValueError("unsupported unit value")
+
+        return LOOKUP_TABLE_LIST
+
+    for key, value in kwargs.items():
+        change_unit_value(Unit(key), value)
+    return LOOKUP_TABLE_LIST
+
+
 def convert(from_unit, value, to_unit):
+
     if from_unit == to_unit:
         return value
 
@@ -72,10 +121,13 @@ def convert(from_unit, value, to_unit):
 
 
 def convertion_factor(from_unit, to_unit):
+
+    LOOKUP_TABLE_LIST = list(TABLE)
+
     if to_unit.value > from_unit.value:
         include = False
         value = 1
-        for item in TABLE:
+        for item in LOOKUP_TABLE_LIST:
             if list(item.keys())[0].upper() == from_unit.label.upper() or include:
                 include = True
                 value *= reduce(lambda x, y: x * y, item.values())
@@ -85,20 +137,24 @@ def convertion_factor(from_unit, to_unit):
     elif from_unit.value > to_unit.value:
         include = False
         value = None
-        l = len(TABLE)
+        l = len(LOOKUP_TABLE_LIST)
         for index in range(l):
             access_index = l - (index + 1)
             if (
-                list(TABLE[access_index].keys())[1].upper() == from_unit.label.upper()
+                list(LOOKUP_TABLE_LIST[access_index].keys())[1].upper()
+                == from_unit.label.upper()
                 or include
             ):
                 include = True
-                item = list(TABLE[access_index].values())
+                item = list(LOOKUP_TABLE_LIST[access_index].values())
                 if value is None:
                     value = item[1] / item[0]
                 else:
                     value = value / item[0]
-            if list(TABLE[access_index].keys())[0].upper() == to_unit.label.upper():
+            if (
+                list(LOOKUP_TABLE_LIST[access_index].keys())[0].upper()
+                == to_unit.label.upper()
+            ):
                 break
         return value
     return 1
