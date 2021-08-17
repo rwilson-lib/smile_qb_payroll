@@ -22,17 +22,11 @@ from rest_framework import routers
 
 router = routers.DefaultRouter()
 
-router.register("benefit", views.BenefitView)
-router.register("employee", views.EmployeeView)
-router.register("employee_benefit", views.EmployeeBenefitView)
-router.register("address", views.AddressView)
-router.register("department", views.DepartmentView)
-router.register("department_head", views.DepartmentHeadView)
-router.register("job", views.JobView)
-router.register("job_benefit", views.JobBenefitView)
-router.register("employee_position", views.EmployeePositionView)
-router.register("employee_position_benefit", views.EmployeePositionBenefitView)
-router.register("earning", views.EarningView)
+router.register("account", views.AccountView)
+router.register("journal", views.JournalView)
+router.register("transaction", views.TransactionView)
+router.register("general_ledger", views.GeneralLedgerView)
+router.register("line_item", views.LineItemView)
 
 # Disable all the unused-variable violations in this function
 # pylint: disable=unused-variable

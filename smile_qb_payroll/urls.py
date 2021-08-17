@@ -27,7 +27,6 @@ from . import views
 urlpatterns = [
     path("", views.index, name="index"),
     path("admin/", admin.site.urls),
-    path("employee/", include("employee.urls")),
-    path("payroll/", include("payroll.urls")),
-    path("country/", include("country.urls")),
+    path("api/", include("api_urls")),
+    path("api-auth/", include("rest_framework.urls")),
 ]  # + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

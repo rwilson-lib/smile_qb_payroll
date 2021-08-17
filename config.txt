@@ -1,0 +1,43 @@
+{
+    "DEFAULTS": {
+        "country": "LBR",
+        "default": "USD"
+    },
+    "CURRENCY": {
+        "MODE": "dual",
+        "LRD": {
+            "isLocal": true
+        },
+        "USD": {
+            "isForeign": true
+        }
+    },
+    "PAYROLL": {
+        "payType": "WEEKLY",
+        "Options": [
+            {
+                "mode": "split",
+                "split": [
+                    {
+                        "unit": "Percent",
+                        "value": 25,
+                        "currency": "LRD"
+                    },
+                    {
+                        "unit": "Percent",
+                        "value": 75,
+                        "currency": "USD"
+                    }
+                ],
+                "class": [
+                    "contractor",
+                    "local",
+                    "expatriate",
+                    "daily_hirer",
+                    "all"
+                ]
+            }
+        ]
+    },
+    "ACCOUNTING": {}
+}

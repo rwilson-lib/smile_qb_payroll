@@ -1,11 +1,16 @@
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Sum, Count
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import CurrencyField, MoneyField
+from djmoney.money import Money
 
 from country.models import Country
 from payroll.income import IncomeType, PayPeriod
+from accounting.models import Account
 from utils import create_money
+
+from djmoney.settings import CURRENCY_CHOICES
 
 
 class TaxType(models.IntegerChoices):
@@ -23,26 +28,43 @@ class Revision(models.Model):
     version = models.CharField(max_length=10)
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     pay_period = models.PositiveIntegerField(choices=PayPeriod.choices)
-    currency = CurrencyField()
+    currency = CurrencyField(choices=CURRENCY_CHOICES)
     date = models.DateField()
 
     def __str__(self):
-        return self.version
+        return f"Version: {self.version}"
 
 
 class TaxContribution(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
-    revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
+    class CalcMode(models.IntegerChoices):
+        RuleBase = 0
+        Percentage = 1
+        Fixed = 2
+
+    class AllowIncomeType(models.IntegerChoices):
+        SALARY = IncomeType.SALARY
+        GROSS = IncomeType.GROSS
+        NET = IncomeType.NET
+        DEDUCTION = IncomeType.DEDUCTION
+        EXTRA = IncomeType.EXTRA
+
     tax = models.CharField(max_length=25)
     type = models.PositiveIntegerField(choices=TaxType.choices)
+    account = models.ForeignKey(Account, on_delete=models.CASCADE)
+    revision = models.ForeignKey(
+        Revision, on_delete=models.CASCADE, blank=True, null=True
+    )
+    calc_mode = models.IntegerField(
+        choices=CalcMode.choices, default=CalcMode.Percentage
+    )
     pay_by = models.PositiveIntegerField(choices=PayBy.choices)
-    taken_from = models.PositiveIntegerField(choices=IncomeType.choices)
-    percental = models.DecimalField(max_digits=19, decimal_places=4)
+    taken_from = models.PositiveIntegerField(choices=AllowIncomeType.choices)
     percental = models.DecimalField(
         max_digits=5, decimal_places=2, blank=True, null=True
     )
-    fixed_deduction_amount = MoneyField(
+    fixed_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
         default=create_money("0.00", "USD"),
@@ -51,15 +73,16 @@ class TaxContribution(models.Model):
         null=True,
     )
     mandatory = models.BooleanField(default=True)
+    active = models.BooleanField(default=True)
 
     def clean(self):
         errors = {}
 
-        if self.fixed_deduction_amount:
+        if self.fixed_amount:
             if self.percental:
-                errors["fixed_deduction_amount"] = _("cannot set both")
+                errors["fixed_amount"] = _("cannot set both")
         if self.percental:
-            if self.fixed_deduction_amount:
+            if self.fixed_amount:
                 errors["percental"] = _("cannot set both")
 
         if errors:

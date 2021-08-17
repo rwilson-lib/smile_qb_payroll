@@ -1,12 +1,13 @@
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.core import serializers
+from .models import Country, State
+from rest_framework import viewsets
+from .serializers import CountrySerializer, StateSerializer
 
-from .models import Country
 
-def get_country_states(request, id):
-    if request.method == 'GET':
-        states = Country.objects.get(pk=id).state_set.all().order_by('name')
-        data = serializers.serialize("json", states, fields=("id", "name"))
-        return JsonResponse(data, safe=False)
+class CountryView(viewsets.ModelViewSet):
+    queryset = Country.objects.all()
+    serializer_class = CountrySerializer
 
+
+class StateView(viewsets.ModelViewSet):
+    queryset = State.objects.all()
+    serializer_class = StateSerializer

@@ -16,27 +16,16 @@ Including another URLconf
 from django.urls import path
 from django.urls import include
 
-from . import views
-from rest_framework import routers
 
-
-router = routers.DefaultRouter()
-
-router.register("benefit", views.BenefitView)
-router.register("employee", views.EmployeeView)
-router.register("employee_benefit", views.EmployeeBenefitView)
-router.register("address", views.AddressView)
-router.register("department", views.DepartmentView)
-router.register("department_head", views.DepartmentHeadView)
-router.register("job", views.JobView)
-router.register("job_benefit", views.JobBenefitView)
-router.register("employee_position", views.EmployeePositionView)
-router.register("employee_position_benefit", views.EmployeePositionBenefitView)
-router.register("earning", views.EarningView)
+from country import urls
+from employee import urls
+from accounting import urls
 
 # Disable all the unused-variable violations in this function
 # pylint: disable=unused-variable
 urlpatterns = [
     # path('', views.home, name='country_home'),
-    path("/", include(router.urls))
+    path("country", include("country.urls")),
+    path("employee", include("employee.urls")),
+    path("accountant", include("accounting.urls")),
 ]

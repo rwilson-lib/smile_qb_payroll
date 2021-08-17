@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django_extensions",
     "djmoney",
     "widget_tweaks",
+    "rest_framework",
     "accounting",
     "country",
     "employee",
@@ -89,6 +90,8 @@ DATABASES = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 
 # Password validation

@@ -9,80 +9,8 @@ from djmoney.money import Money
 from djmoney.settings import CURRENCY_CHOICES
 
 from country.models import Country, State
-from payroll.income import Income, PayPeriod, IncomeType
-from accounting.models import Account
+from payroll.income import Income, PayPeriod
 from utils import create_money
-
-
-class Benefit(models.Model):
-    class Scope(models.IntegerChoices):
-        Employee = 0
-        Position = 1
-        Job = 2
-        Department = 3
-        Grade = 4
-
-    class CalcMode(models.IntegerChoices):
-        Percentage = 0
-        Fixed = 1
-        RuleBase = 2
-
-    class AllowIncomeType(models.IntegerChoices):
-        SALARY = IncomeType.SALARY
-        GROSS = IncomeType.GROSS
-        NET = IncomeType.NET
-        DEDUCTION = IncomeType.DEDUCTION
-        EXTRA = IncomeType.EXTRA
-
-    name = models.CharField(max_length=25)
-    scope = models.PositiveIntegerField(choices=Scope.choices)
-    account = models.ForeignKey(Account, on_delete=models.CASCADE)
-    calc_mode = models.IntegerField(
-        choices=CalcMode.choices, default=CalcMode.Percentage
-    )
-    apply_to = models.PositiveIntegerField(choices=AllowIncomeType.choices)
-    percental = models.DecimalField(
-        max_digits=5, decimal_places=2, blank=True, null=True
-    )
-    fixed_amount = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
-        blank=True,
-        null=True,
-    )
-    rules = models.JSONField(blank=True, null=True)
-    active = models.BooleanField(default=True)
-
-    def compute_benefits(self, scope, id=None, value=None):
-        def check_param(param):
-            if not param is None:
-                return
-            raise ValueError(f"{param} is required")
-
-        def calc(self):
-            if self.CalcMode.Fixed:
-                return self.fixed_amount
-            if self.CalcMode.Percentage:
-                if value is None:
-                    raise ValueError("value required")
-                return value * self.percental
-
-        if scope == self.Scope.Employee:
-            EmployeeBenefit.objects.filter(employee=id)
-        elif scope == self.Scope.Position:
-            EmployeePositionBenefit.objects.filter(employee=id)
-        elif scope == self.Scope.Job:
-            JobBenefit.objects.filter(job=id)
-
-        elif scope == self.Scope.Grade:
-            pass
-
-        else:
-            raise ValueError("unknown type")
-
-        return 0.00
 
 
 class Employee(models.Model):
@@ -102,8 +30,6 @@ class Employee(models.Model):
         PART_TIME = 1
         CONTRACTOR = 2
 
-    employee_benefit = models.ManyToManyField("Benefit", through="EmployeeBenefit")
-    employee_position = models.ManyToManyField("Job", through="EmployeePosition")
     employee_id_number = models.CharField(max_length=25, unique=True)
     first_name = models.CharField(max_length=25)
     middle_name = models.CharField(max_length=25, blank=True, null=True)
@@ -156,11 +82,6 @@ class Employee(models.Model):
         ordering = ["employee_id_number"]
 
 
-class EmployeeBenefit(models.Model):
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
-
-
 class Address(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
@@ -199,15 +120,9 @@ class DepartmentHead(models.Model):
 
 
 class Job(models.Model):
-    class WageType(models.IntegerChoices):
-        SALARIED = 0
-        PER_RATE = 1
-
     currency = CurrencyField(choices=CURRENCY_CHOICES)
     position = models.CharField(max_length=100)
-    job_benefit = models.ManyToManyField("Benefit", through="JobBenefit")
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    wage_type = models.PositiveIntegerField(choices=WageType.choices)
     pay_period = models.PositiveIntegerField(choices=PayPeriod.choices)
     base_salary_wage = MoneyField(
         max_digits=14,
@@ -222,11 +137,6 @@ class Job(models.Model):
         return f"{self.position} {self.department.department} GRADE:{self.grade}"
 
 
-class JobBenefit(models.Model):
-    Job = models.ForeignKey(Job, on_delete=models.CASCADE)
-    benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
-
-
 class EmployeePosition(models.Model):
     class State(models.IntegerChoices):
         CURRENT = 0
@@ -235,16 +145,13 @@ class EmployeePosition(models.Model):
         RESIGNED = 3
         TERMINATED = 4
 
-    employee_position_benefit = models.ManyToManyField(
-        "Benefit", "EmployeePositionBenefit"
-    )
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     position = models.ForeignKey(Job, on_delete=models.CASCADE)
     grade = models.CharField(max_length=2, blank=True, null=True)
     pay_period = models.PositiveIntegerField(
         choices=PayPeriod.choices, default=PayPeriod.MONTHLY
     )
-    negotiated_salary_wage = MoneyField(
+    negotiated_salary = MoneyField(
         max_digits=14, decimal_places=2, blank=True, null=True
     )
     state = models.IntegerField(choices=State.choices, default=State.CURRENT)
@@ -255,11 +162,11 @@ class EmployeePosition(models.Model):
         # Disable all the no-member violations in this function
         # pylint: disable=no-member
         total = self.earning_set.aggregate(total=Sum("amount"))["total"] or 0.00
-        return Money(total, self.negotiated_salary_wage.currency)
+        return Money(total, self.negotiated_salary.currency)
 
     @property
     def total_earnings(self):
-        total = self.other_earnings + self.negotiated_salary_wage
+        total = self.other_earnings + self.negotiated_salary
         return Income(PayPeriod(self.pay_period), total)
 
     class Meta:
@@ -269,11 +176,11 @@ class EmployeePosition(models.Model):
         # Disable all the no-member violations in this function
         # pylint: disable=no-member
         errors = {}
-        minimum_wage = Money(1.00, self.negotiated_salary_wage_currency)
+        minimum_wage = Money(1.00, self.negotiated_salary_currency)
 
-        if self.negotiated_salary_wage:
-            if self.negotiated_salary_wage < minimum_wage:
-                errors["negotiated_salary_wage"] = _(
+        if self.negotiated_salary:
+            if self.negotiated_salary < minimum_wage:
+                errors["negotiated_salary"] = _(
                     f"salary cannot less than MinimumWage {minimum_wage}"
                 )
 
@@ -282,9 +189,9 @@ class EmployeePosition(models.Model):
 
     @classmethod
     def pre_create(cls, sender, instance, *args, **kwargs):
-        if not instance.negotiated_salary_wage:
-            instance.negotiated_salary_wage = instance.position.base_salary_wage
-            instance.negotiated_salary_wage_currency = (
+        if not instance.negotiated_salary:
+            instance.negotiated_salary = instance.position.base_salary_wage
+            instance.negotiated_salary_currency = (
                 instance.position.base_salary_wage_currency
             )
             instance.pay_period = instance.position.pay_period
@@ -294,11 +201,6 @@ class EmployeePosition(models.Model):
 
     def __str__(self):
         return f"{self.employee} {self.position}"
-
-
-class EmployeePositionBenefit(models.Model):
-    employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
-    benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
 
 
 class Earning(models.Model):

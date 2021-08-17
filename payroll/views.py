@@ -140,9 +140,9 @@ def payroll_create(request):
             for data in formsets:
                 if data.cleaned_data.get("employee_id"):
                     counter += 1
-                    emp_payroll_id = data.cleaned_data.get("employee_id")
+                    payroll_employee_id = data.cleaned_data.get("employee_id")
                     new_payroll_employee = PayrollEmployee(
-                        employee_id=emp_payroll_id, payroll_id=new_payroll.id
+                        employee_id=payroll_employee_id, payroll_id=new_payroll.id
                     )
                     new_payroll_employee.save()
 
@@ -171,12 +171,12 @@ def payroll_employee_get(request, pk, line_pk):
 
     payroll = get_object_or_404(Payroll, pk=pk)
     payroll_employee = payroll.payrollemployee_set.get(pk=line_pk)
-    extra_incomes = payroll_employee.payrollextra_set.all()
+    extra_incomes = payroll_employee.addition_set.all()
     deductions = payroll_employee.payrolldeduction_set.all()
     earnings = payroll_employee.employee.earning_set.all()
 
     extra_sum = create_money(
-        payroll_employee.payrollextra_set.aggregate(sum=Sum("amount"))["sum"] or 0.00,
+        payroll_employee.addition_set.aggregate(sum=Sum("amount"))["sum"] or 0.00,
         payroll_employee.earnings.currency,
     )
     deduction_sum = create_money(
@@ -228,7 +228,7 @@ def payroll_deduction(request, pk):
 def payroll_extra(request, pk):
 
     employee = PayrollEmployee.objects.get(pk=pk)
-    employee_extras = employee.payrollextra_set.all()
+    employee_extras = employee.addition_set.all()
 
     template = "extras.html"
     context = {"employee_extras": employee_extras}

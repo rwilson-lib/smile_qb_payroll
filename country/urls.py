@@ -14,12 +14,18 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.urls import path
+from django.urls import include
 
 from . import views
+from rest_framework import routers
+
+router = routers.DefaultRouter()
+router.register("country", views.CountryView)
+router.register("country", views.StateView)
 
 # Disable all the unused-variable violations in this function
 # pylint: disable=unused-variable
 urlpatterns = [
     # path('', views.home, name='country_home'),
-    path("<int:id>/states", views.get_country_states, name="get_country_states"),
+    path("", include(router.urls))
 ]

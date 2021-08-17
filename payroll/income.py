@@ -43,37 +43,36 @@ TABLE = (
 )
 
 
+def validate_unit_value(unit, value):
+    if not type(unit) is Unit:
+        raise TypeError("unit must be a Unit")
+
+    if unit == Unit.HOUR:
+        if not (value >= 1 and value <= 24):
+            raise ValueError("HOUR value must be between 1 and 24")
+    elif unit == Unit.DAY:
+        if not (value >= 1 and value <= 7):
+            raise ValueError("DAY value must be between 1 and 7")
+    elif unit == Unit.WEEK:
+        if not (value >= 1 and value <= 4):
+            raise ValueError("WEEK value must be between 1 and 4")
+    elif unit == Unit.MONTH:
+        if not (value >= 1 and value <= 12):
+            raise ValueError("MONTH value must be between 1 and 12")
+    else:
+        raise ValueError("unsupported unit value")
+
+    return unit, value
+
+
 def get_convertion_table(**kwargs):
     LOOKUP_TABLE_LIST = deepcopy(TABLE)
 
     def change_unit_value(unit, value):
         for item in LOOKUP_TABLE_LIST:
-            if not type(unit) is Unit:
-                raise TypeError("unit must be a Unit")
-
-            if unit == Unit.HOUR:
-                if not (value >= 1 and value <= 24):
-                    raise ValueError("HOUR value must be between 1 and 24")
-                if unit.value == list(item.keys())[0]:
-                    item[unit.value] = value
-
-            elif unit == Unit.DAY:
-                if not (value >= 1 and value <= 7):
-                    raise ValueError("DAY value must be between 1 and 7")
-                if unit.value == list(item.keys())[0]:
-                    item[unit.value] = value
-            elif unit == Unit.WEEK:
-                if not (value >= 1 and value <= 4):
-                    raise ValueError("WEEK value must be between 1 and 4")
-                if unit.value == list(item.keys())[0]:
-                    item[unit.value] = value
-            elif unit == Unit.MONTH:
-                if not (value >= 1 and value <= 12):
-                    raise ValueError("MONTH value must be between 1 and 12")
-                if unit.value == list(item.keys())[0]:
-                    item[unit.value] = value
-            else:
-                raise ValueError("unsupported unit value")
+            unit, value = validate_unit_value(unit, value)
+            if unit.value == list(item.keys())[0]:
+                item[unit.value] = value
 
         return LOOKUP_TABLE_LIST
 
@@ -162,17 +161,24 @@ def convertion_factor(from_unit, to_unit, **kwargs):
 
 
 class Income:
-    def __init__(self, pay_period, money):
+    def __init__(self, pay_period, money, **kwargs):
         if not isinstance(pay_period, PayPeriod):
             raise TypeError(f"pay_period must be of type {PayPeriod}")
         if not isinstance(money, Money):
             raise TypeError(f"money must be of type {Money}")
         self.pay_period = pay_period
         self.money = money
+        self.work_hour_to_day = 24 if None else kwargs.get("HOURLY")
+        self.work_day_to_week = 7 if None else kwargs.get("DAILY")
+        self.work_week_to_month = 4 if None else kwargs.get("WEEKLY")
 
     def convert_to(self, to_unit, **kwargs):
         value = convert(self.pay_period, self.money, to_unit, **kwargs)
-        return Income(to_unit, value)
+        income = Income(to_unit, value)
+        income.work_hour_to_day = 24 if None else kwargs.get("HOURLY")
+        income.work_day_to_week = 7 if None else kwargs.get("DAILY")
+        income.work_week_to_month = 4 if None else kwargs.get("WEEKLY")
+        return income
 
     def __add__(self, value):
         if isinstance(value, Income):
