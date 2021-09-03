@@ -3,24 +3,16 @@
         "django": {
             "adapter": "debugpy",
             "configuration": {
-                "name": "django",
-                "type": "python",
                 "request": "launch",
-                "cwd": "${workspaceRoot}",
                 "stopOnEntry": true,
-                "console": "externalTerminal",
-                "debugOptions": [],
+                "python": "${VIRTUAL_ENV}/bin/python3",
                 "program": "${workspaceRoot}/manage.py",
                 "args": [
                     "runserver",
-                    "localhost:8000"
+                    "localhost:5555",
+                    "--noreload"
                 ],
-                "django": true,
-                "logToFile": true,
-                "python": "~/.venvs/password-generator/bin/python3",
-                "env": {
-                    "DJANGO_SETTINGS_MODULE": "password_generator.settings"
-                }
+                "django": true
             }
         },
         "launch-js": {
