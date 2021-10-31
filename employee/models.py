@@ -14,6 +14,9 @@ from accounting.models import Account
 from utils import create_money
 
 
+# TODO: Move benefit to a new app call benefit
+
+
 class Benefit(models.Model):
     class Scope(models.IntegerChoices):
         Employee = 0
@@ -315,6 +318,13 @@ class Earning(models.Model):
 
     def __str__(self):
         return f"{self.earning}, {self.amount}"
+
+
+class EmployeeAccount(models.Model):
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    bank = models.ForeignKey(Account, on_delete=models.CASCADE)
+    account_number = models.CharField(max_length=25)
+    active = models.BooleanField(default=True)
 
 
 pre_save.connect(EmployeePosition.pre_create, sender=EmployeePosition)
