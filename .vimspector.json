@@ -9,7 +9,7 @@
                 "program": "${workspaceRoot}/manage.py",
                 "args": [
                     "runserver",
-                    "localhost:5555",
+                    "localhost:8000",
                     "--noreload"
                 ],
                 "django": true
