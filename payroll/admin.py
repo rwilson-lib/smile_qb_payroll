@@ -10,6 +10,7 @@ from .models import (
     PayrollEmployee,
     Addition,
     TaxContributionCollector,
+    TimeSheet,
 )
 
 admin.site.register(Credit)
@@ -21,3 +22,4 @@ admin.site.register(PayrollDeduction)
 admin.site.register(PayrollEmployee)
 admin.site.register(Addition)
 admin.site.register(TaxContributionCollector)
+admin.site.register(TimeSheet)
