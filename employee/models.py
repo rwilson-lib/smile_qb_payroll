@@ -87,6 +87,9 @@ class Benefit(models.Model):
 
         return 0.00
 
+    def __str__(self):
+        return self.name
+
 
 class Employee(models.Model):
     class Gender(models.TextChoices):
