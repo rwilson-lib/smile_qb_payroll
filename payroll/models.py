@@ -78,6 +78,21 @@ class ExchangeRate(models.Model):
         return f"{self.foreign} {self.local}"
 
 
+
+class PayOption(models.Model):
+    # name =  models.CharField(max_length=25)
+    # split_by
+    # currency
+    # pay_period
+    pass
+
+class PayOptionEmployee(models.Model):
+    # option
+    # employee
+    pass
+
+# {{{ Payroll
+
 class Payroll(models.Model):
     class Status(models.IntegerChoices):
         CREATED = 0
@@ -280,8 +295,8 @@ class Payroll(models.Model):
             GeneralLedger.objects.bulk_create(ledger)
 
     def __str__(self):
-        return f"{self.date}"
-
+        return f'{self.date.strftime("%b %d %YS")}'
+# }}}
 
 class Credit(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
@@ -546,7 +561,7 @@ class PayrollEmployee(models.Model):
         ):
             if not self.hour_worked is None:
                 value = self.employee.negotiated_salary_wage * hour_worked
-                Income(PayPeriod(self.employee.pay_period), total)
+                Income(PayPeriod(self.employee.pay_period), value)
         else:
             raise TypeError(
                 "can't perform calculation for {self.employee.position.wage_type}"
@@ -779,6 +794,15 @@ class TaxContributionCollector(models.Model):
 
     def __str__(self):
         return f"{self.contribution}, {self.amount}"
+
+
+class TimeSheet(models.Model):
+    employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
+    date  = models.DateField()
+    clock_start_time =  models.TimeField()
+    clock_end_time = models.TimeField()
+    break_start_time =  models.TimeField()
+    break_end_time = models.TimeField()
 
 
 pre_save.connect(Payroll.pre_create, sender=Payroll)
