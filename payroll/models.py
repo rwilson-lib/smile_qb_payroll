@@ -47,6 +47,7 @@ def get_local_currency():
     return currency
 
 
+# {{{ ExchangeRate
 class ExchangeRate(models.Model):
     foreign = MoneyField(
         max_digits=14,
@@ -77,19 +78,7 @@ class ExchangeRate(models.Model):
     def __str__(self):
         return f"{self.foreign} {self.local}"
 
-
-
-class PayOption(models.Model):
-    # name =  models.CharField(max_length=25)
-    # split_by
-    # currency
-    # pay_period
-    pass
-
-class PayOptionEmployee(models.Model):
-    # option
-    # employee
-    pass
+# }}}
 
 # {{{ Payroll
 
@@ -298,6 +287,8 @@ class Payroll(models.Model):
         return f'{self.date.strftime("%b %d %YS")}'
 # }}}
 
+# {{{ Credit
+
 class Credit(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     item = models.CharField(max_length=100)
@@ -379,6 +370,9 @@ class Credit(models.Model):
     def __str__(self):
         return f"{self.employee} {self.item} {self.amount} {self.date}"
 
+# }}}
+
+# {{{ CreditPaymentPlan
 
 class CreditPaymentPlan(models.Model):
     class Status(models.IntegerChoices):
@@ -416,6 +410,10 @@ class CreditPaymentPlan(models.Model):
     def __str__(self):
         return f"{self.name}, {self.credit}, {self.percent}"
 
+
+# }}}
+
+# {{{ PayrollEmployee
 
 class PayrollEmployee(models.Model):
     payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE)
@@ -664,6 +662,9 @@ class PayrollEmployee(models.Model):
         ordering = ["-payroll"]
 
 
+# }}}
+
+# {{{ Addition
 class Addition(models.Model):
     payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
     item = models.ForeignKey(LineItem, on_delete=models.CASCADE)
@@ -699,6 +700,10 @@ class Addition(models.Model):
     def __str__(self):
         return f"{self.payroll_employee} {self.item} {self.amount}"
 
+
+# }}}
+
+# {{{ PayrollDeduction
 
 class PayrollDeduction(models.Model):
     payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
@@ -757,7 +762,9 @@ class PayrollDeduction(models.Model):
 
     def __str__(self):
         return f"{self.payroll_employee} {self.payment_plan} {self.amount}"
+# }}}
 
+# {{{ EmployeeTaxContribution
 
 class EmployeeTaxContribution(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
@@ -781,7 +788,9 @@ class EmployeeTaxContribution(models.Model):
     def __str__(self):
         return f"{self.employee} {self.tax}"
 
+# }}}
 
+# {{{ TaxContributionCollector
 class TaxContributionCollector(models.Model):
     contribution = models.ForeignKey(TaxContribution, on_delete=models.CASCADE)
     payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
@@ -794,8 +803,9 @@ class TaxContributionCollector(models.Model):
 
     def __str__(self):
         return f"{self.contribution}, {self.amount}"
+# }}}
 
-
+# {{{ TimeSheet
 class TimeSheet(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     date  = models.DateField()
@@ -804,6 +814,11 @@ class TimeSheet(models.Model):
     break_start_time =  models.TimeField()
     break_end_time = models.TimeField()
 
+    def employee_total_hours(self, employee_id):
+        TimeSheet.objects.filter(employee=self.employee)
+# }}}
+
+# {{{ Models Signals
 
 pre_save.connect(Payroll.pre_create, sender=Payroll)
 post_save.connect(Payroll.post_create_or_update, sender=Payroll)
@@ -818,3 +833,5 @@ post_save.connect(PayrollDeduction.post_create_or_update, sender=PayrollDeductio
 post_delete.connect(PayrollDeduction.post_delete, sender=PayrollDeduction)
 
 post_save.connect(Credit.post_create_or_update, sender=Credit)
+
+# }}}

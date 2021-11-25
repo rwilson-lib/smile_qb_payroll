@@ -41,7 +41,7 @@ class Benefit(models.Model):
     scope = models.PositiveIntegerField(choices=Scope.choices)
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
     calc_mode = models.IntegerField(
-        choices=CalcMode.choices, default=CalcMode.Percentage
+    choices=CalcMode.choices, default=CalcMode.Percentage
     )
     apply_to = models.PositiveIntegerField(choices=AllowIncomeType.choices)
     percental = models.DecimalField(
@@ -71,7 +71,6 @@ class Benefit(models.Model):
                 if value is None:
                     raise ValueError("value required")
                 return value * self.percental
-
         if scope == self.Scope.Employee:
             EmployeeBenefit.objects.filter(employee=id)
         elif scope == self.Scope.Position:
