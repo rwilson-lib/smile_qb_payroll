@@ -17,6 +17,7 @@ from utils import create_money
 # TODO: Move benefit to a new app call benefit
 
 
+#{{{ Benefit
 class Benefit(models.Model):
     class Scope(models.IntegerChoices):
         Employee = 0
@@ -88,8 +89,9 @@ class Benefit(models.Model):
 
     def __str__(self):
         return self.name
+#}}}
 
-
+#{{{ Employee
 class Employee(models.Model):
     class Gender(models.TextChoices):
         MALE = "M"
@@ -159,13 +161,15 @@ class Employee(models.Model):
 
     class Meta:
         ordering = ["employee_id_number"]
+# }}}
 
-
+#{{{ Employee Benefit
 class EmployeeBenefit(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
+#}}}
 
-
+#{{{ Address
 class Address(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
@@ -183,8 +187,9 @@ class Address(models.Model):
     state = models.ForeignKey(State, on_delete=models.CASCADE)
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
     label = models.CharField(max_length=2, choices=Label.choices)
+#}}}
 
-
+#{{{ Department
 class Department(models.Model):
     department = models.CharField(max_length=100)
     head_of_department = models.ManyToManyField(Employee, through="DepartmentHead")
@@ -192,7 +197,9 @@ class Department(models.Model):
     def __str__(self):
         return self.department
 
+#}}}
 
+#{{{ Department Head
 class DepartmentHead(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
@@ -201,8 +208,9 @@ class DepartmentHead(models.Model):
 
     def __str__(self):
         return f"{self.department.department} {self.employee}"
+#}}}
 
-
+#{{{ Job
 class Job(models.Model):
     class WageType(models.IntegerChoices):
         SALARIED = 0
@@ -226,12 +234,15 @@ class Job(models.Model):
     def __str__(self):
         return f"{self.position} {self.department.department} GRADE:{self.grade}"
 
+#}}}
 
+#{{{ Job Benefit
 class JobBenefit(models.Model):
     Job = models.ForeignKey(Job, on_delete=models.CASCADE)
     benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
+#}}}
 
-
+#{{{ Employee Position
 class EmployeePosition(models.Model):
     class State(models.IntegerChoices):
         CURRENT = 0
@@ -300,12 +311,16 @@ class EmployeePosition(models.Model):
     def __str__(self):
         return f"{self.employee} {self.position}"
 
+#}}}
 
+#{{{ Employee Position Benefit
 class EmployeePositionBenefit(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     benefit = models.ForeignKey(Benefit, on_delete=models.CASCADE)
 
+# }}}
 
+#{{{ Earning 
 class Earning(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
@@ -320,13 +335,14 @@ class Earning(models.Model):
 
     def __str__(self):
         return f"{self.earning}, {self.amount}"
+#}}}
 
-
+#{{{ Employee Account
 class EmployeeAccount(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     bank = models.ForeignKey(Account, on_delete=models.CASCADE)
     account_number = models.CharField(max_length=25)
     active = models.BooleanField(default=True)
-
+#}}}
 
 pre_save.connect(EmployeePosition.pre_create, sender=EmployeePosition)
