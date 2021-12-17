@@ -461,13 +461,6 @@ class PayrollEmployee(models.Model):
         default_currency=get_default_currency(),
         editable=False,
     )
-    take_home = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default=Money("0.00", get_default_currency()),
-        default_currency=get_default_currency(),
-        editable=False,
-    )
 
     __taxes = None
     __deductions = None
@@ -593,11 +586,6 @@ class PayrollEmployee(models.Model):
         net = self._gross_income() - self._income_tax()
         return net
 
-    def _take_home(self):
-        return Income(
-            PayPeriod(self.payroll.pay_period),
-            self._net_income().money - self.__taxes,
-        )
 
     def _total_deductions(self):
         total_emp_tax = sum(
@@ -620,7 +608,6 @@ class PayrollEmployee(models.Model):
         self.gross_income = self._gross_income().money
         self.income_tax = self._income_tax().money
         self.extra_income = self._extra_income().money
-        self.take_home = self._take_home().money
         self.deductions = self._total_deductions()["total"]
         self.save()
 
@@ -631,7 +618,6 @@ class PayrollEmployee(models.Model):
         instance.gross_income = instance._gross_income().money
         instance.income_tax = instance._income_tax().money
         instance.extra_income = instance._extra_income().money
-        instance.take_home = instance._take_home().money
         instance.deductions = instance._total_deductions()["total"]
 
     @classmethod

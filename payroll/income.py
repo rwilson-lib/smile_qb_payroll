@@ -21,10 +21,9 @@ class IncomeType(models.IntegerChoices):
     SALARY = 0
     GROSS = 1
     NET = 2
-    TAKE_HOME = 3
-    EXTRA = 4
-    DEDUCTION = 5
-    OTHER = 6
+    EXTRA = 3
+    DEDUCTION = 4
+    OTHER = 5
 
 
 class Unit(Enum):
