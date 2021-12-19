@@ -47,6 +47,15 @@ def get_local_currency():
     return currency
 
 
+def check_money(money_one, money_two):
+    if type(money_one) is Money or \
+       type(money_two) is Money:
+        if money_one == money_two:
+            return True
+            
+    return False
+
+
 # {{{ ExchangeRate
 class ExchangeRate(models.Model):
     foreign = MoneyField(
@@ -66,6 +75,10 @@ class ExchangeRate(models.Model):
     def exchange(self, money):
         # Disable all the no-member violations in this function
         # pylint: disable=no-member
+
+        if not type(money) is Money:
+            raise ValueError("must of the type money")
+
         if money.currency == self.foreign.currency:
             value = money.amount * self.local.amount
             return Money(value, self.local.currency)
@@ -75,8 +88,9 @@ class ExchangeRate(models.Model):
 
         raise ValueError("Operation not allowed")
 
+
     def __str__(self):
-        return f"{self.foreign} {self.local}"
+        return f"{self.foreign.amount} {self.foreign_currency} -> {self.local.amount} {self.local_currency}"
 
 # }}}
 
@@ -95,7 +109,7 @@ class Payroll(models.Model):
         choices=PayPeriod.choices, default=PayPeriod.MONTHLY
     )
     date = models.DateField()
-    currency = CurrencyField(default=get_default_currency)
+    currency = CurrencyField(choices=CURRENCY_CHOICES, default=get_default_currency)
     tax_revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     fraction = models.DecimalField(
         max_digits=14, decimal_places=2, null=True, blank=True
@@ -284,7 +298,7 @@ class Payroll(models.Model):
             GeneralLedger.objects.bulk_create(ledger)
 
     def __str__(self):
-        return f'{self.date.strftime("%b %d %YS")}'
+        return f'{self.date.strftime("%b %d %Y")}'
 # }}}
 
 # {{{ Credit
@@ -541,12 +555,32 @@ class PayrollEmployee(models.Model):
             if amount
         ]
 
+    def _try_convert_currency(self, money):
+
+        if self.payroll.currency == money.currency:
+            return money
+
+        if self.payroll.rate is None:
+            raise TypeError("rate is needed for the convertion")
+
+        if  not self.payroll.rate.foreign_currency == self.payroll.currency and \
+            not self.payroll.rate.local_currency == self.payroll.currency:
+            raise TypeError("rate can not be use for convertion")
+
+        if  not self.payroll.rate.foreign_currency == str(money.currency) and \
+            not self.payroll.rate.local_currency == str(money.currency):
+            raise TypeError("rate can not be use for convertion")
+
+        return self.payroll.rate.exchange(money)
+
     def _earnings(self, faction=None):
-        value = None
+        value = None 
+
         if self.employee.position.wage_type == self.employee.position.WageType.SALARIED:
             value = self.employee.total_earnings.convert_to(
                 PayPeriod(self.payroll.pay_period)
             )
+            value.money = self._try_convert_currency(value.money)
         elif (
             self.employee.position.wage_type == self.employee.position.WageType.PER_RATE
         ):
@@ -559,8 +593,11 @@ class PayrollEmployee(models.Model):
             )
 
         if self.payroll.fraction:
-            return value * self.payroll.fraction
+            value = value * self.payroll.fraction
+
+          
         return value
+
 
     def _extra_income(self):
         extra_sum = self.addition_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
