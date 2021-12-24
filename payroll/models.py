@@ -5,7 +5,7 @@ from django.db.models.signals import post_delete, post_save, pre_save
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import CurrencyField, MoneyField
-from djmoney.money import Money
+from djmoney.money import Currency, Money
 from djmoney.settings import CURRENCY_CHOICES, DEFAULT_CURRENCY
 
 from accounting.models import (
@@ -18,7 +18,7 @@ from accounting.models import (
 from employee.models import Employee, EmployeePosition
 from payroll.income import Income, IncomeType, PayPeriod
 from tax.models import PayBy, Revision, TaxContribution
-from tax.tax_calc import test_tax
+from tax.tax_calc import calculate_tax 
 
 from .queries import (
     get_addition_group_by_addition,
@@ -48,12 +48,16 @@ def get_local_currency():
 
 
 def check_money(money_one, money_two):
-    if type(money_one) is Money or \
+    if type(money_one) is Money and \
        type(money_two) is Money:
         if money_one == money_two:
             return True
             
     return False
+
+
+def automatic_convertion_allow():
+    return True
 
 
 # {{{ ExchangeRate
@@ -77,7 +81,7 @@ class ExchangeRate(models.Model):
         # pylint: disable=no-member
 
         if not type(money) is Money:
-            raise ValueError("must of the type money")
+            raise ValueError("must be of the class Money")
 
         if money.currency == self.foreign.currency:
             value = money.amount * self.local.amount
@@ -104,6 +108,7 @@ class Payroll(models.Model):
         APPROVED = 3
         PAID = 4
 
+    number = models.CharField(max_length=25, blank=True, null=True)
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
     pay_period = models.PositiveIntegerField(
         choices=PayPeriod.choices, default=PayPeriod.MONTHLY
@@ -505,41 +510,16 @@ class PayrollEmployee(models.Model):
             )
         )
 
-        def percental_or_fixed(tax, item):
-            if tax.calc_mode == tax.CalcMode.Percentage:
-                percentage = item * tax.percental
-                return percentage
-            elif tax.calc_mode == tax.CalcMode.Fixed:
-                return tax.fixed_amount
-            elif tax.calc_mode == tax.CalcMode.RuleBase:
-                rev = self.payroll.tax_revision
-                rate = None
-                if rev.currency != self.earnings.currency.code:
-                    rate = self.payroll.rate
+        l = []
 
-                income = Income(PayPeriod(self.payroll.pay_period), self.gross_income)
-                tax = test_tax(income, rev, rate)
-                income_tax = tax.tax.convert_to(PayPeriod(self.payroll.pay_period))
+        for emp_tax_n_contrib in emp_taxes_n_contribs:
+            income = self._select_income_function(IncomeType(emp_tax_n_contrib.taken_from))
+            if emp_tax_n_contrib.currency != income.money.currency.code: 
+                l.append(calculate_tax(emp_tax_n_contrib, self._try_convert_currency(income)))
+            else:
+                l.append(calculate_tax(emp_tax_n_contrib, income))
 
-                if rate:
-                    income_tax.money = rate.exchange(income_tax.money)
-                    return income_tax.money
-
-                return income_tax.money
-
-        return [
-            TaxContributionCollector(
-                contribution=emp_tax_n_contrib,
-                payroll_employee=self,
-                amount=percental_or_fixed(
-                    emp_tax_n_contrib,
-                    self._select_income_function(
-                        IncomeType(emp_tax_n_contrib.taken_from)
-                    ).money,
-                ),
-            )
-            for emp_tax_n_contrib in emp_taxes_n_contribs
-        ]
+        return l
 
     def _calc_deduction(self):
         return [
@@ -555,10 +535,10 @@ class PayrollEmployee(models.Model):
             if amount
         ]
 
-    def _try_convert_currency(self, money):
+    def _try_convert_currency(self, income):
 
-        if self.payroll.currency == money.currency:
-            return money
+        if self.payroll.currency == income.money.currency:
+            return income
 
         if self.payroll.rate is None:
             raise TypeError("rate is needed for the convertion")
@@ -567,36 +547,39 @@ class PayrollEmployee(models.Model):
             not self.payroll.rate.local_currency == self.payroll.currency:
             raise TypeError("rate can not be use for convertion")
 
-        if  not self.payroll.rate.foreign_currency == str(money.currency) and \
-            not self.payroll.rate.local_currency == str(money.currency):
+        if  not self.payroll.rate.foreign_currency == str(income.money.currency) and \
+            not self.payroll.rate.local_currency == str(income.money.currency):
             raise TypeError("rate can not be use for convertion")
 
-        return self.payroll.rate.exchange(money)
+        income.money = self.payroll.rate.exchange(income.money)
+        return income
 
     def _earnings(self, faction=None):
-        value = None 
+        income = None 
 
         if self.employee.position.wage_type == self.employee.position.WageType.SALARIED:
-            value = self.employee.total_earnings.convert_to(
-                PayPeriod(self.payroll.pay_period)
-            )
-            value.money = self._try_convert_currency(value.money)
+            income = self.employee.total_earnings
+            if income.money.currency.code != self.payroll.currency:
+                if not automatic_convertion_allow():
+                    raise TypeError('currency dont match and auto convert is not allow')
+                income = self._try_convert_currency(income.convert_to(PayPeriod(self.payroll.pay_period)))
+            else:
+                income = income.convert_to(PayPeriod(self.payroll.pay_period))
+
         elif (
             self.employee.position.wage_type == self.employee.position.WageType.PER_RATE
         ):
-            if not self.hour_worked is None:
-                value = self.employee.negotiated_salary_wage * hour_worked
-                Income(PayPeriod(self.employee.pay_period), value)
-        else:
-            raise TypeError(
-                "can't perform calculation for {self.employee.position.wage_type}"
-            )
+            if self.hour_worked is None:
+                raise TypeError(
+                    "can't perform calculation for {self.employee.position.wage_type}"
+                )
+            income = self.employee.negotiated_salary_wage * hour_worked
+            Income(PayPeriod(self.employee.pay_period), income)
 
         if self.payroll.fraction:
-            value = value * self.payroll.fraction
-
+            income = income * self.payroll.fraction
           
-        return value
+        return income
 
 
     def _extra_income(self):
@@ -698,6 +681,9 @@ class Addition(models.Model):
         default_currency=get_default_currency(),
     )
 
+    def convert_currency(self):
+        pass
+    
     class Meta:
         unique_together = ("payroll_employee", "item")
 
@@ -712,10 +698,16 @@ class Addition(models.Model):
     def clean(self):
 
         errors = {}
+        if self.payroll_employee.payroll.currency != self.amount_currency: 
+            errors["amount"] = _(
+                f" Item currency {self.amount.currency} does not match payroll currency {self.payroll_employee.payroll.currency }"
+            )
+
         if self.payroll_employee.payroll.status > Payroll.Status.REVIEW:
             errors["payroll_employee"] = _(
                 f"cant add to a {self.payroll_employee.payroll.get_status_display()} payroll"
             )
+
 
         if errors:
             raise ValidationError(errors)
@@ -791,7 +783,14 @@ class PayrollDeduction(models.Model):
 
 class EmployeeTaxContribution(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
-    tax = models.ForeignKey(TaxContribution, on_delete=models.CASCADE)
+    tax = models.ForeignKey(
+        TaxContribution,
+        on_delete=models.CASCADE,
+        limit_choices_to={
+            'active': True,
+            'mandatory': False
+        },
+)
     active = models.BooleanField(default=True)
 
     class Meta:

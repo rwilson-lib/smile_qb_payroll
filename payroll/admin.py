@@ -34,7 +34,8 @@ class TaxContributionCollectorAdmin(admin.ModelAdmin):
     readonly_fields=(
         'contribution',
         'payroll_employee',
-        'amount'
+        'amount',
+        'amount_currency'
     )
  
 admin.site.register(Credit)
