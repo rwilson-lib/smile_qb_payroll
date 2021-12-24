@@ -10,7 +10,7 @@ from djmoney.settings import CURRENCY_CHOICES
 
 from country.models import Country, State
 from payroll.income import Income, PayPeriod, IncomeType
-from accounting.models import Account
+from accounting.models import Account, AccountType
 from utils import create_money
 
 
@@ -254,7 +254,7 @@ class EmployeePosition(models.Model):
     employee_position_benefit = models.ManyToManyField(
         "Benefit", "EmployeePositionBenefit"
     )
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, limit_choices_to={'active': True})
     position = models.ForeignKey(Job, on_delete=models.CASCADE)
     grade = models.CharField(max_length=2, blank=True, null=True)
     pay_period = models.PositiveIntegerField(
@@ -340,9 +340,24 @@ class Earning(models.Model):
 #{{{ Employee Account
 class EmployeeAccount(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
-    bank = models.ForeignKey(Account, on_delete=models.CASCADE)
-    account_number = models.CharField(max_length=25)
+    bank = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        limit_choices_to={'type': AccountType.BANK},
+        related_name="parent_account"
+    )
+    link_acc = models.ForeignKey(
+        Account,
+        on_delete=models.CASCADE,
+        limit_choices_to={'type': AccountType.BANK},
+        related_name="link_account"
+    )
+    current = models.BooleanField(default=False)
     active = models.BooleanField(default=True)
+
+
+    def __str__(self):
+        return repr(self.link_acc)
 #}}}
 
 pre_save.connect(EmployeePosition.pre_create, sender=EmployeePosition)
