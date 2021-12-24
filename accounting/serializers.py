@@ -1,19 +1,11 @@
 from rest_framework import serializers
 
-from .models import Account, Journal, Transaction, GeneralLedger, LineItem
+from .models import Account, Transaction, GeneralLedger, LineItem
 
 
 class AccountSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Account
-        fields = [
-            "id",
-        ]
-
-
-class JournalSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = Journal
         fields = [
             "id",
         ]

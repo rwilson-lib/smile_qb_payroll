@@ -23,7 +23,6 @@ from rest_framework import routers
 router = routers.DefaultRouter()
 
 router.register("account", views.AccountView)
-router.register("journal", views.JournalView)
 router.register("transaction", views.TransactionView)
 router.register("general_ledger", views.GeneralLedgerView)
 router.register("line_item", views.LineItemView)

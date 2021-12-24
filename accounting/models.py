@@ -39,9 +39,9 @@ def account_num_is_required():
 class Account(models.Model):
     type = models.IntegerField(choices=AccountType.choices)
     currency = CurrencyField(choices=CURRENCY_CHOICES)
-    name = models.CharField(max_length=50, unique=True)
-    account_num = models.CharField(max_length=30, unique=True, blank=True, null=True)
-    bank_number = models.CharField(max_length=25, unique=True, blank=True, null=True)
+    name = models.CharField(max_length=50)
+    account_number = models.CharField(max_length=30, blank=True, null=True)
+    bank_number = models.CharField(max_length=25, blank=True, null=True)
     ending_balance_amt = models.DecimalField(
         max_digits=14, decimal_places=2, default=0.00, blank=True, null=True
     )
@@ -49,12 +49,15 @@ class Account(models.Model):
     description = models.TextField(blank=True, null=True)
     is_hidden = models.BooleanField(default=False)
 
-    @property
-    def balance(self):
-        balance = GeneralLedger.objects.filter(account=self).aggregate(
-            balance=Sum("amount")
-        )["balance"]
-        return balance
+    class Meta:
+        unique_together = ('type', 'currency', 'name', 'account_number')
+
+    # @property
+    # def balance(self):
+    #     balance = GeneralLedger.objects.filter(account=self).aggregate(
+    #         balance=Sum("amount")
+    #     )["balance"]
+    #     return balance
 
     def clean(self):
         errors = {}
@@ -65,8 +68,8 @@ class Account(models.Model):
                     "Account of type BANK must have a bank number"
                 )
         if account_num_is_required():
-            if self.account_num is None:
-                errors["account_num"] = _("account number is required")
+            if self.account_number is None:
+                errors["account_number"] = _("account number is required")
 
         if self.type == TransactionType.CREDIT:
             if self.amount.amount < 0:
@@ -76,23 +79,7 @@ class Account(models.Model):
             raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.account_num} - {self.name}, {self.balance}"
-
-
-class Journal(models.Model):
-    date = models.DateField(default=timezone.now)
-    time = models.TimeField(default=timezone.now)
-    credit_account = models.ForeignKey(
-        Account, on_delete=models.CASCADE, related_name="credit_account"
-    )
-    debit_account = models.ForeignKey(
-        Account, on_delete=models.CASCADE, related_name="debit_account"
-    )
-
-    amount = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-    )
+        return f"{self.account_number} - {self.name}"
 
 
 class Transaction(models.Model):
@@ -113,42 +100,34 @@ class Transaction(models.Model):
 
 class GeneralLedger(models.Model):
     transaction = models.ForeignKey(Transaction, on_delete=models.CASCADE)
-    account = models.ForeignKey(
-        Account, related_name="account", on_delete=models.CASCADE
-    )
-    # change to entry_type
-    transaction_type = models.IntegerField(choices=TransactionType.choices)
-    amount = MoneyField(
+    
+    debit_account = models.ForeignKey(Account, related_name="debit_account", on_delete=models.CASCADE)
+    debit_amount = MoneyField(
         max_digits=14,
         decimal_places=2,
+        default=Money("0.00", 'USD'),
+        default_currency='USD',
+    )
+    credit_account = models.ForeignKey(Account, related_name="credit_account", on_delete=models.CASCADE)
+    credit_amount = MoneyField(
+        max_digits=14,
+        decimal_places=2,
+        default=Money("0.00", 'USD'),
+        default_currency='USD',
     )
 
-    @classmethod
-    def write(cls, transaction, account, entry_type, value):
-        gl = GeneralLedger(
-            transaction_id=transaction,
-            account=account,
-            transaction_type=entry_type,
-            amount=value,
-        )
-        gl.save()
 
-    def clean(self):
-        errors = {}
+    # def clean(self):
+    #     errors = {}
 
-        if self.transaction_type == TransactionType.DEBIT:
-            if self.amount.amount > 0:
-                errors["transaction_type"] = _("debit balance must be negative")
+    #     if self.debit_amount.amount < 0:
+    #         errors["transaction_type"] = _("debit balance must be negative")
 
-        if self.transaction_type == TransactionType.CREDIT:
-            if self.amount.amount < 0:
-                errors["transaction_type"] = _("credit balance must be positive")
-
-        if errors:
-            raise ValidationError(errors)
+    #     if errors:
+    #         raise ValidationError(errors)
 
     def __str__(self):
-        return f"{self.account.name} {self.amount}"
+         return f"DEBIT: {self.debit_account.name} {self.debit_amount} -> CREDIT: {self.credit_account.name} {self.credit_amount}"
 
 
 class LineItem(models.Model):
