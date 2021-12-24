@@ -27,8 +27,6 @@ class PayBy(models.IntegerChoices):
 class Revision(models.Model):
     version = models.CharField(max_length=10)
     country = models.ForeignKey(Country, on_delete=models.CASCADE)
-    pay_period = models.PositiveIntegerField(choices=PayPeriod.choices)
-    currency = CurrencyField(choices=CURRENCY_CHOICES)
     date = models.DateField()
 
     def __str__(self):
@@ -50,6 +48,7 @@ class TaxContribution(models.Model):
         DEDUCTION = IncomeType.DEDUCTION
         EXTRA = IncomeType.EXTRA
 
+    tax_period = models.PositiveIntegerField(choices=PayPeriod.choices)
     tax = models.CharField(max_length=25)
     type = models.PositiveIntegerField(choices=TaxType.choices)
     account = models.ForeignKey(Account, on_delete=models.CASCADE)
@@ -61,32 +60,10 @@ class TaxContribution(models.Model):
     )
     pay_by = models.PositiveIntegerField(choices=PayBy.choices)
     taken_from = models.PositiveIntegerField(choices=AllowIncomeType.choices)
-    percental = models.DecimalField(
-        max_digits=5, decimal_places=2, blank=True, null=True
-    )
-    fixed_amount = MoneyField(
-        max_digits=14,
-        decimal_places=2,
-        default=create_money("0.00", "USD"),
-        default_currency="USD",
-        blank=True,
-        null=True,
-    )
+    currency = CurrencyField(choices=CURRENCY_CHOICES)
+    value = models.DecimalField(max_digits=14, decimal_places=2, blank=True, null=True)
     mandatory = models.BooleanField(default=True)
     active = models.BooleanField(default=True)
-
-    def clean(self):
-        errors = {}
-
-        if self.fixed_amount:
-            if self.percental:
-                errors["fixed_amount"] = _("cannot set both")
-        if self.percental:
-            if self.fixed_amount:
-                errors["percental"] = _("cannot set both")
-
-        if errors:
-            raise ValidationError(errors)
 
     def __str__(self):
         return f"{self.tax}"
@@ -95,7 +72,7 @@ class TaxContribution(models.Model):
 class Clause(models.Model):
     # Disable all the unused-variable violations in this function
     # pylint: disable=unused-variable
-    revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
+    tax_contrib = models.ForeignKey(TaxContribution, on_delete=models.CASCADE)
     line_num = models.CharField(max_length=19)
     start = models.DecimalField(max_digits=19, decimal_places=4)
     end = models.DecimalField(max_digits=19, decimal_places=4, blank=True, null=True)
@@ -104,7 +81,7 @@ class Clause(models.Model):
     addition = models.DecimalField(max_digits=19, decimal_places=4, default=0.00)
 
     def __str__(self):
-        return f"{self.revision} {self.line_num} {self.percent}"
+        return f"{self.tax_contrib} {self.line_num}"
 
     class Meta:
-        unique_together = ("revision", "line_num")
+        unique_together = ("tax_contrib", "line_num")
