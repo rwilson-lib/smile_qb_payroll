@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django_extensions",
     "djmoney",
+    "djmoney.contrib.exchange",
     "widget_tweaks",
     "rest_framework",
     "accounting",
@@ -133,3 +134,6 @@ USE_TZ = True
 STATIC_URL = "/static/"
 
 STATICFILES_DIRS = [os.path.join(BASE_DIR, "static")]
+
+FIXER_ACCESS_KEY = "ac71b6806c71d993ebb4e38b8aca17dd"
+FIXER_URL = 'http://data.fixer.io/api/latest?symbols=EUR,LRD,USD'
