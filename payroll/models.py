@@ -522,18 +522,41 @@ class PayrollEmployee(models.Model):
         return l
 
     def _calc_deduction(self):
-        return [
-            PayrollDeduction(
-                payroll_employee=self, payment_plan=active_plan, amount=amount
-            )
-            for active_plan in CreditPaymentPlan.objects.filter(
-                Q(status=CreditPaymentPlan.Status.ACTIVE)
-                & Q(credit__completed=False)
-                & Q(credit__employee=self.employee.employee.id)
-            )
-            for amount in [active_plan.deduct()]
-            if amount
-        ]
+        queryset = CreditPaymentPlan.objects.filter(
+                Q(credit__employee=self.employee.employee.id)
+              & Q(credit__completed=False)
+              & Q(status=CreditPaymentPlan.Status.ACTIVE)
+        )
+
+        collection = namedtuple('PayrollDeductionCollection',['collection', 'total'])
+        collection.collection = []
+        collection.total=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+
+        for item in queryset:
+            income =  Income(PayPeriod(self.payroll.pay_period), item.deduct())
+            if self.payroll.currency != income.money.currency.code:
+                if self.payroll.rate:
+                    if not automatic_convertion_allow():
+                        raise TypeError('currency dont match and auto convert is not allow')
+                    collection.total = collection.total + self._try_convert_currency(income)
+                    collection.collection.append(
+                        PayrollDeduction(
+                            payroll_employee=self,
+                            payment_plan=item,
+                            amount=self._try_convert_currency(income).money
+                        )
+                    )
+            else:
+                collection.total = collection.total + income
+                collection.collection.append(
+                    PayrollDeduction(
+                        payroll_employee=self,
+                        payment_plan=item,
+                        amount=income.money
+                    )
+                )
+        return collection
+
 
     def _try_convert_currency(self, income):
 
