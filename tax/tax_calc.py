@@ -14,11 +14,16 @@ def apply_tax_rules(income, excess_over, percent, extra):
 def calculate_tax(tax_contrib, income):
 
     if tax_contrib.calc_mode == TaxContribution.CalcMode.Fixed:
-        return Income(PayPeriod(tax_contrib.tax_period), income)
+        return Income(
+            PayPeriod(tax_contrib.tax_period),
+            Money(tax_contrib.value, tax_contrib.currency)
+        )
 
     elif tax_contrib.calc_mode == TaxContribution.CalcMode.Percentage:
-        percentage = income.money * tax_contrib.value
-        return percentage
+        return Income(
+            PayPeriod(tax_contrib.tax_period),
+            income.money * tax_contrib.value
+        )
 
     elif tax_contrib.calc_mode == TaxContribution.CalcMode.RuleBase:
         tax = determine_tax_value(tax_contrib, income) 
@@ -31,9 +36,9 @@ def determine_tax_value(tax_contrib, income):
     tax = namedtuple("Tax", ["revision", "match_clause", "tax"])
 
     currency = tax_contrib.currency
-    pay_period = PayPeriod(tax_contrib.tax_period)
+    tax_period = PayPeriod(tax_contrib.tax_period)
 
-    income = income.convert_to(pay_period)
+    income = income.convert_to(tax_period)
 
     for clause in tax_contrib.clause_set.all():
         if clause.end is None:
@@ -41,7 +46,7 @@ def determine_tax_value(tax_contrib, income):
                 t = apply_tax_rules(
                     income.money, clause.excess_over, clause.percent, clause.addition
                 )
-                i = Income(pay_period, t)
+                i = Income(tax_period, t)
                 return tax(tax_contrib.revision.version, clause.line_num, i)
         else:
             if math.floor(income.money.amount) in range(
@@ -53,7 +58,7 @@ def determine_tax_value(tax_contrib, income):
                     clause.percent,
                     clause.addition,
                 )
-                i = Income(pay_period, t)
+                i = Income(tax_period, t)
                 return tax(tax_contrib.revision.version, clause.line_num, i)
 
     raise ValueError(f"tax revision ID:{tax_contrib.id} have no matching tax clause")
