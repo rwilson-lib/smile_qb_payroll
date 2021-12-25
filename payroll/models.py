@@ -8,6 +8,8 @@ from djmoney.models.fields import CurrencyField, MoneyField
 from djmoney.money import Currency, Money
 from djmoney.settings import CURRENCY_CHOICES, DEFAULT_CURRENCY
 
+from collections import namedtuple
+
 from accounting.models import (
     Account,
     GeneralLedger,
@@ -410,13 +412,14 @@ class CreditPaymentPlan(models.Model):
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVE)
 
     def deduct(self):
+        default = Money("0.00", self.credit.amount_currency)
         if self.credit.completed:
-            return None
-        default = Money("0.00", get_default_currency())
+            return default
+
         balance = self.credit.balance
         value = self.credit.amount * self.percent
         if balance <= default:
-            return None
+            return default
         if value >= balance:
             return balance
         return value
@@ -535,9 +538,23 @@ class PayrollEmployee(models.Model):
                 )
 
             else:
-                l.append(calculate_tax(emp_tax_n_contrib, income))
+                tax = calculate_tax(emp_tax_n_contrib, income)
+                tax = tax.convert_to(income.pay_period) 
 
-        return l
+                if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
+                    collection.total_by_employee = collection.total_by_employee + tax
+                if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
+                    collection.total_by_employer = collection.total_by_employer + tax
+                    
+                collection.collection.append(
+                    TaxContributionCollector(
+                        contribution = emp_tax_n_contrib,
+                        payroll_employee = self,
+                        amount = tax.money
+                    )
+                )
+
+        return collection
 
     def _calc_deduction(self):
         queryset = CreditPaymentPlan.objects.filter(
@@ -624,44 +641,38 @@ class PayrollEmployee(models.Model):
 
 
     def _extra_income(self):
-        extra_sum = self.addition_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
-        return Income(
-            PayPeriod(self.payroll.pay_period),
-            Money(extra_sum, self.earnings.currency),
-        )
+
+        queryset = self.addition_set.values('amount_currency').annotate(sum=Sum('amount'))
+        earings = self._earnings()
+        extra_income = Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+
+        for item in queryset:
+            income =  Income(PayPeriod(self.payroll.pay_period),
+                             Money(item.get('sum'), item.get('amount_currency')))
+            if item.get('amount_currency') != earings.money.currency.code:
+                if self.payroll.rate:
+                    if not automatic_convertion_allow():
+                        raise TypeError('currency dont match and auto convert is not allow')
+                    extra_income = extra_income + self._try_convert_currency(income)
+            else:
+                extra_income = extra_income + income
+        
+        return extra_income
 
     def _gross_income(self):
-        total = self.extra_income + self.earnings
-        return Income(PayPeriod(self.payroll.pay_period), total)
+        total = self._extra_income() + self._earnings()
+        return total
 
     def _income_tax(self):
-        if self.__taxes is None:
-            self._total_deductions()
+        return  self._calc_taxes().total_by_employee
 
-        return Income(
-            PayPeriod(self.payroll.pay_period),
-            self._gross_income().money - self.__taxes,
-        )
+    def _deductions(self):
+        return self._calc_deduction().total
 
     def _net_income(self):
         net = self._gross_income() - self._income_tax()
         return net
 
-
-    def _total_deductions(self):
-        total_emp_tax = sum(
-            t.amount
-            for t in self._calc_taxes()
-            if t.contribution.pay_by == PayBy.EMPLOYEE
-        )
-        total_emp_deduction = sum(t.amount for t in self._calc_deduction())
-        self.__taxes = total_emp_tax
-        self.__deductions = total_emp_deduction
-        return {
-            "tax_n_contribution": self.__taxes,
-            "deduction": self.__deductions,
-            "total": self.__taxes + self.__deductions,
-        }
 
     def update_calc_props(self):
         self.earnings = self._earnings().money
@@ -669,7 +680,8 @@ class PayrollEmployee(models.Model):
         self.gross_income = self._gross_income().money
         self.income_tax = self._income_tax().money
         self.extra_income = self._extra_income().money
-        self.deductions = self._total_deductions()["total"]
+        self.deductions = self._deductions().money
+        # Fixed this prevent from sending signal 
         self.save()
 
     @classmethod
@@ -679,14 +691,11 @@ class PayrollEmployee(models.Model):
         instance.gross_income = instance._gross_income().money
         instance.income_tax = instance._income_tax().money
         instance.extra_income = instance._extra_income().money
-        instance.deductions = instance._total_deductions()["total"]
+        instance.deductions = instance._deductions().money
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
-        if created:
-            PayrollDeduction.objects.bulk_create(instance._calc_deduction())
-            TaxContributionCollector.objects.bulk_create(instance._calc_taxes())
-            instance.update_calc_props()
+        pass
 
     def clean(self):
         errors = {}
