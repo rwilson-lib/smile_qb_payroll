@@ -501,7 +501,7 @@ class PayrollEmployee(models.Model):
 
     def _calc_taxes(self):
         employee_current_position = self.employee
-        emp_taxes_n_contribs = TaxContribution.objects.filter(
+        queryset = TaxContribution.objects.filter(
             active=True, mandatory=True
         ).union(
             TaxContribution.objects.filter(
@@ -510,12 +510,30 @@ class PayrollEmployee(models.Model):
             )
         )
 
-        l = []
+        collection = namedtuple('TaxCollection', ['collection', 'total_by_employee', 'total_by_employer'])
+        collection.collection = []
+        collection.total_by_employee=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+        collection.total_by_employer=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
 
-        for emp_tax_n_contrib in emp_taxes_n_contribs:
+        for emp_tax_n_contrib in queryset:
             income = self._select_income_function(IncomeType(emp_tax_n_contrib.taken_from))
             if emp_tax_n_contrib.currency != income.money.currency.code: 
-                l.append(calculate_tax(emp_tax_n_contrib, self._try_convert_currency(income)))
+                tax = calculate_tax(emp_tax_n_contrib, self._try_convert_currency(income))
+                tax = self._try_convert_currency(tax.convert_to(income.pay_period))
+
+                if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
+                    collection.total_by_employee = collection.total_by_employee + tax
+                if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
+                    collection.total_by_employer = collection.total_by_employer + tax
+                    
+                collection.collection.append(
+                    TaxContributionCollector(
+                        contribution = emp_tax_n_contrib,
+                        payroll_employee = self,
+                        amount = tax.money
+                    )
+                )
+
             else:
                 l.append(calculate_tax(emp_tax_n_contrib, income))
 
