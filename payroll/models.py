@@ -5,7 +5,7 @@ from django.db.models.signals import post_delete, post_save, pre_save
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import CurrencyField, MoneyField
-from djmoney.money import Currency, Money
+from djmoney.money import Money
 from djmoney.settings import CURRENCY_CHOICES, DEFAULT_CURRENCY
 
 from collections import namedtuple
@@ -17,15 +17,13 @@ from accounting.models import (
     Transaction,
     TransactionType,
 )
-from employee.models import Employee, EmployeePosition
+from employee.models import Employee, EmployeePosition, EmployeeAccount
 from payroll.income import Income, IncomeType, PayPeriod
 from tax.models import PayBy, Revision, TaxContribution
-from tax.tax_calc import calculate_tax 
+from tax.tax_calc import calculate_tax
 
 from .queries import (
     get_addition_group_by_addition,
-    get_deductions_group_by_credit,
-    get_tax_contributions_group_by_taxes,
 )
 
 
@@ -50,11 +48,9 @@ def get_local_currency():
 
 
 def check_money(money_one, money_two):
-    if type(money_one) is Money and \
-       type(money_two) is Money:
+    if type(money_one) is Money and type(money_two) is Money:
         if money_one == money_two:
             return True
-            
     return False
 
 
@@ -94,13 +90,14 @@ class ExchangeRate(models.Model):
 
         raise ValueError("Operation not allowed")
 
-
     def __str__(self):
         return f"{self.foreign.amount} {self.foreign_currency} -> {self.local.amount} {self.local_currency}"
+
 
 # }}}
 
 # {{{ Payroll
+
 
 class Payroll(models.Model):
     class Status(models.IntegerChoices):
@@ -130,20 +127,20 @@ class Payroll(models.Model):
 
     __lines = None
 
-    def __get_total(self):
+    def __get_lines(self):
         self.__lines = PayrollEmployee.objects.filter(payroll=self.id)
 
     @property
     def count_lines(self):
         if self.__lines is None:
-            self.__get_total()
+            self.__get_lines()
 
         return self.__lines.aggregate(lines=Count("id"))["lines"]
 
     @property
     def total_salary(self):
         if self.__lines is None:
-            self.__get_total()
+            self.__get_lines()
         return Money(
             self.__lines.aggregate(earnings=Sum("earnings"))["earnings"], self.currency
         )
@@ -151,7 +148,7 @@ class Payroll(models.Model):
     @property
     def total_gross(self):
         if self.__lines is None:
-            self.__get_total()
+            self.__get_lines()
 
         return Money(
             self.__lines.aggregate(gross_income_sum=Sum("gross_income"))[
@@ -187,128 +184,77 @@ class Payroll(models.Model):
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
-        if instance.status == instance.Status.APPROVED:
-            taxes_results = get_tax_contributions_group_by_taxes(instance)
-            additions = get_addition_group_by_addition(instance)
-            deductions = get_deductions_group_by_credit(instance)
-            ledger = []
-            for result in taxes_results:
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=instance.account_id,
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=result["contribution__account"],
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            for result in additions:
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=instance.account_id,
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=result["item__account"],
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            for result in deductions:
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=instance.account_id,
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=result["payment_plan__credit__account"],
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            GeneralLedger.objects.bulk_create(ledger)
+        if instance.status in range(instance.Status.REVIEW, instance.Status.CLOSED):
+            taxes = TaxContributionCollector.objects.filter(
+                payroll_employee__payroll=instance
+            )
+            deductions = PayrollDeduction.objects.filter(
+                payroll_employee__payroll=instance
+            )
+            taxes.delete()
+            deductions.delete()
+
+        if instance.status == instance.Status.CLOSED:
+            if instance.__lines is None:
+                instance.__get_lines()
+
+            for item in instance.__lines:
+                item.update_calc_props()
+                taxncontribs = item._calc_taxes().collection
+                deductions = item._calc_deduction().collection
+                TaxContributionCollector.objects.bulk_create(taxncontribs)
+                PayrollDeduction.objects.bulk_create(deductions)
+
+        elif instance.status == instance.Status.APPROVED:
+            if instance.__lines is None:
+                instance.__get_lines()
+
+            total_gross = instance.total_gross
+
+            GeneralLedger(
+                transaction_id=1,
+                debit_account=instance.account,
+                debit_amount=total_gross * -1.00,
+                credit_account=instance.account,
+                credit_amount=total_gross,
+            ).save()
+
         elif instance.status == instance.Status.PAID:
-            taxes_results = get_tax_contributions_group_by_taxes(instance)
-            additions = get_addition_group_by_addition(instance)
-            deductions = get_deductions_group_by_credit(instance)
-            ledger = []
-            for result in taxes_results:
-                ledger.append(
+            if instance.__lines is None:
+                instance.__get_lines()
+
+            for item in instance.__lines:
+                account = (
+                    EmployeeAccount.objects.filter(
+                        employee=item.employee.employee, current=True, active=True
+                    )
+                    or None
+                )
+                if account is None:
+                    # Call some function function
+                    print(f"None {item.employee}")
+                elif len(account) > 1:
+                    # Call some function function
+                    print(f"Many current account {item.employee}")
+                else:
                     GeneralLedger(
                         transaction_id=1,
-                        account_id=result["contribution__account"],
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=8,
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            for result in additions:
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=result["item__account"],
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        # hard cored bank
-                        account_id=8,
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            for result in deductions:
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        account_id=result["payment_plan__credit__account"],
-                        transaction_type=TransactionType.DEBIT,
-                        amount=Money(result["total"], "USD") * -1.00,
-                    )
-                )
-                ledger.append(
-                    GeneralLedger(
-                        transaction_id=1,
-                        # hard cored bank
-                        account_id=8,
-                        transaction_type=TransactionType.CREDIT,
-                        amount=Money(result["total"], "USD"),
-                    )
-                )
-            GeneralLedger.objects.bulk_create(ledger)
+                        debit_account=account[0].bank,
+                        debit_amount=item.net_income * -1.00,
+                        credit_account=account[0].link_acc,
+                        credit_amount=item.net_income,
+                    ).save()
+
+            # GeneralLedger.objects.bulk_create(ledger)
 
     def __str__(self):
         return f'{self.date.strftime("%b %d %Y")}'
+
+
 # }}}
 
 # {{{ Credit
+
 
 class Credit(models.Model):
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
@@ -391,9 +337,11 @@ class Credit(models.Model):
     def __str__(self):
         return f"{self.employee} {self.item} {self.amount} {self.date}"
 
+
 # }}}
 
 # {{{ CreditPaymentPlan
+
 
 class CreditPaymentPlan(models.Model):
     class Status(models.IntegerChoices):
@@ -436,6 +384,7 @@ class CreditPaymentPlan(models.Model):
 # }}}
 
 # {{{ PayrollEmployee
+
 
 class PayrollEmployee(models.Model):
     payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE)
@@ -484,10 +433,6 @@ class PayrollEmployee(models.Model):
         editable=False,
     )
 
-    __taxes = None
-    __deductions = None
-    __pay_period = None
-
     def _select_income_function(self, income, *args, **kwargs):
         if not isinstance(income, IncomeType):
             raise TypeError(f"income must be of type {IncomeType}")
@@ -504,53 +449,61 @@ class PayrollEmployee(models.Model):
 
     def _calc_taxes(self):
         employee_current_position = self.employee
-        queryset = TaxContribution.objects.filter(
-            active=True, mandatory=True
-        ).union(
+        queryset = TaxContribution.objects.filter(active=True, mandatory=True).union(
             TaxContribution.objects.filter(
                 employeetaxcontribution__employee=employee_current_position,
                 employeetaxcontribution__active=True,
             )
         )
 
-        collection = namedtuple('TaxCollection', ['collection', 'total_by_employee', 'total_by_employer'])
+        collection = namedtuple(
+            "TaxCollection", ["collection", "total_by_employee", "total_by_employer"]
+        )
         collection.collection = []
-        collection.total_by_employee=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
-        collection.total_by_employer=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+        collection.total_by_employee = Income(
+            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+        )
+        collection.total_by_employer = Income(
+            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+        )
 
         for emp_tax_n_contrib in queryset:
-            income = self._select_income_function(IncomeType(emp_tax_n_contrib.taken_from))
-            if emp_tax_n_contrib.currency != income.money.currency.code: 
-                tax = calculate_tax(emp_tax_n_contrib, self._try_convert_currency(income))
+            income = self._select_income_function(
+                IncomeType(emp_tax_n_contrib.taken_from)
+            )
+            if emp_tax_n_contrib.currency != income.money.currency.code:
+                tax = calculate_tax(
+                    emp_tax_n_contrib, self._try_convert_currency(income)
+                )
                 tax = self._try_convert_currency(tax.convert_to(income.pay_period))
 
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
                     collection.total_by_employee = collection.total_by_employee + tax
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
                     collection.total_by_employer = collection.total_by_employer + tax
-                    
+
                 collection.collection.append(
                     TaxContributionCollector(
-                        contribution = emp_tax_n_contrib,
-                        payroll_employee = self,
-                        amount = tax.money
+                        contribution=emp_tax_n_contrib,
+                        payroll_employee=self,
+                        amount=tax.money,
                     )
                 )
 
             else:
                 tax = calculate_tax(emp_tax_n_contrib, income)
-                tax = tax.convert_to(income.pay_period) 
+                tax = tax.convert_to(income.pay_period)
 
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
                     collection.total_by_employee = collection.total_by_employee + tax
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
                     collection.total_by_employer = collection.total_by_employer + tax
-                    
+
                 collection.collection.append(
                     TaxContributionCollector(
-                        contribution = emp_tax_n_contrib,
-                        payroll_employee = self,
-                        amount = tax.money
+                        contribution=emp_tax_n_contrib,
+                        payroll_employee=self,
+                        amount=tax.money,
                     )
                 )
 
@@ -558,40 +511,43 @@ class PayrollEmployee(models.Model):
 
     def _calc_deduction(self):
         queryset = CreditPaymentPlan.objects.filter(
-                Q(credit__employee=self.employee.employee.id)
-              & Q(credit__completed=False)
-              & Q(status=CreditPaymentPlan.Status.ACTIVE)
+            Q(credit__employee=self.employee.employee.id)
+            & Q(credit__completed=False)
+            & Q(status=CreditPaymentPlan.Status.ACTIVE)
         )
 
-        collection = namedtuple('PayrollDeductionCollection',['collection', 'total'])
+        collection = namedtuple("PayrollDeductionCollection", ["collection", "total"])
         collection.collection = []
-        collection.total=Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+        collection.total = Income(
+            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+        )
 
         for item in queryset:
-            income =  Income(PayPeriod(self.payroll.pay_period), item.deduct())
+            income = Income(PayPeriod(self.payroll.pay_period), item.deduct())
             if self.payroll.currency != income.money.currency.code:
                 if self.payroll.rate:
                     if not automatic_convertion_allow():
-                        raise TypeError('currency dont match and auto convert is not allow')
-                    collection.total = collection.total + self._try_convert_currency(income)
+                        raise TypeError(
+                            "currency dont match and auto convert is not allow"
+                        )
+                    collection.total = collection.total + self._try_convert_currency(
+                        income
+                    )
                     collection.collection.append(
                         PayrollDeduction(
                             payroll_employee=self,
                             payment_plan=item,
-                            amount=self._try_convert_currency(income).money
+                            amount=self._try_convert_currency(income).money,
                         )
                     )
             else:
                 collection.total = collection.total + income
                 collection.collection.append(
                     PayrollDeduction(
-                        payroll_employee=self,
-                        payment_plan=item,
-                        amount=income.money
+                        payroll_employee=self, payment_plan=item, amount=income.money
                     )
                 )
         return collection
-
 
     def _try_convert_currency(self, income):
 
@@ -601,26 +557,31 @@ class PayrollEmployee(models.Model):
         if self.payroll.rate is None:
             raise TypeError("rate is needed for the convertion")
 
-        if  not self.payroll.rate.foreign_currency == self.payroll.currency and \
-            not self.payroll.rate.local_currency == self.payroll.currency:
+        if (
+            not self.payroll.rate.foreign_currency == self.payroll.currency
+            and not self.payroll.rate.local_currency == self.payroll.currency
+        ):
             raise TypeError("rate can not be use for convertion")
 
-        if  not self.payroll.rate.foreign_currency == str(income.money.currency) and \
-            not self.payroll.rate.local_currency == str(income.money.currency):
+        if not self.payroll.rate.foreign_currency == str(
+            income.money.currency
+        ) and not self.payroll.rate.local_currency == str(income.money.currency):
             raise TypeError("rate can not be use for convertion")
 
         income.money = self.payroll.rate.exchange(income.money)
         return income
 
     def _earnings(self, faction=None):
-        income = None 
+        income = None
 
         if self.employee.position.wage_type == self.employee.position.WageType.SALARIED:
             income = self.employee.total_earnings
             if income.money.currency.code != self.payroll.currency:
                 if not automatic_convertion_allow():
-                    raise TypeError('currency dont match and auto convert is not allow')
-                income = self._try_convert_currency(income.convert_to(PayPeriod(self.payroll.pay_period)))
+                    raise TypeError("currency dont match and auto convert is not allow")
+                income = self._try_convert_currency(
+                    income.convert_to(PayPeriod(self.payroll.pay_period))
+                )
             else:
                 income = income.convert_to(PayPeriod(self.payroll.pay_period))
 
@@ -636,27 +597,34 @@ class PayrollEmployee(models.Model):
 
         if self.payroll.fraction:
             income = income * self.payroll.fraction
-          
-        return income
 
+        return income
 
     def _extra_income(self):
 
-        queryset = self.addition_set.values('amount_currency').annotate(sum=Sum('amount'))
+        queryset = self.addition_set.values("amount_currency").annotate(
+            sum=Sum("amount")
+        )
         earings = self._earnings()
-        extra_income = Income(PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency))
+        extra_income = Income(
+            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+        )
 
         for item in queryset:
-            income =  Income(PayPeriod(self.payroll.pay_period),
-                             Money(item.get('sum'), item.get('amount_currency')))
-            if item.get('amount_currency') != earings.money.currency.code:
+            income = Income(
+                PayPeriod(self.payroll.pay_period),
+                Money(item.get("sum"), item.get("amount_currency")),
+            )
+            if item.get("amount_currency") != earings.money.currency.code:
                 if self.payroll.rate:
                     if not automatic_convertion_allow():
-                        raise TypeError('currency dont match and auto convert is not allow')
+                        raise TypeError(
+                            "currency dont match and auto convert is not allow"
+                        )
                     extra_income = extra_income + self._try_convert_currency(income)
             else:
                 extra_income = extra_income + income
-        
+
         return extra_income
 
     def _gross_income(self):
@@ -664,7 +632,7 @@ class PayrollEmployee(models.Model):
         return total
 
     def _income_tax(self):
-        return  self._calc_taxes().total_by_employee
+        return self._calc_taxes().total_by_employee
 
     def _deductions(self):
         return self._calc_deduction().total
@@ -673,7 +641,6 @@ class PayrollEmployee(models.Model):
         net = self._gross_income() - self._income_tax()
         return net
 
-
     def update_calc_props(self):
         self.earnings = self._earnings().money
         self.net_income = self._net_income().money
@@ -681,7 +648,7 @@ class PayrollEmployee(models.Model):
         self.income_tax = self._income_tax().money
         self.extra_income = self._extra_income().money
         self.deductions = self._deductions().money
-        # Fixed this prevent from sending signal 
+        # Fixed this prevent from sending signal
         self.save()
 
     @classmethod
@@ -733,7 +700,7 @@ class Addition(models.Model):
 
     def convert_currency(self):
         pass
-    
+
     class Meta:
         unique_together = ("payroll_employee", "item")
 
@@ -748,7 +715,7 @@ class Addition(models.Model):
     def clean(self):
 
         errors = {}
-        if self.payroll_employee.payroll.currency != self.amount_currency: 
+        if self.payroll_employee.payroll.currency != self.amount_currency:
             errors["amount"] = _(
                 f" Item currency {self.amount.currency} does not match payroll currency {self.payroll_employee.payroll.currency }"
             )
@@ -757,7 +724,6 @@ class Addition(models.Model):
             errors["payroll_employee"] = _(
                 f"cant add to a {self.payroll_employee.payroll.get_status_display()} payroll"
             )
-
 
         if errors:
             raise ValidationError(errors)
@@ -769,6 +735,7 @@ class Addition(models.Model):
 # }}}
 
 # {{{ PayrollDeduction
+
 
 class PayrollDeduction(models.Model):
     payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
@@ -798,12 +765,10 @@ class PayrollDeduction(models.Model):
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
         instance.mark_as_completed()
-        instance.payroll_employee.update_calc_props()
 
     @classmethod
     def post_delete(cls, sender, instance, *args, **kwargs):
         instance.mark_as_completed()
-        instance.payroll_employee.update_calc_props()
 
     def clean(self):
         # Disable all the no-member violations in this function
@@ -827,20 +792,20 @@ class PayrollDeduction(models.Model):
 
     def __str__(self):
         return f"{self.payroll_employee} {self.payment_plan} {self.amount}"
+
+
 # }}}
 
 # {{{ EmployeeTaxContribution
+
 
 class EmployeeTaxContribution(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     tax = models.ForeignKey(
         TaxContribution,
         on_delete=models.CASCADE,
-        limit_choices_to={
-            'active': True,
-            'mandatory': False
-        },
-)
+        limit_choices_to={"active": True, "mandatory": False},
+    )
     active = models.BooleanField(default=True)
 
     class Meta:
@@ -860,6 +825,7 @@ class EmployeeTaxContribution(models.Model):
     def __str__(self):
         return f"{self.employee} {self.tax}"
 
+
 # }}}
 
 # {{{ TaxContributionCollector
@@ -875,19 +841,23 @@ class TaxContributionCollector(models.Model):
 
     def __str__(self):
         return f"{self.contribution}, {self.amount}"
+
+
 # }}}
 
 # {{{ TimeSheet
 class TimeSheet(models.Model):
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
-    date  = models.DateField()
-    clock_start_time =  models.TimeField()
+    date = models.DateField()
+    clock_start_time = models.TimeField()
     clock_end_time = models.TimeField()
-    break_start_time =  models.TimeField()
+    break_start_time = models.TimeField()
     break_end_time = models.TimeField()
 
     def employee_total_hours(self, employee_id):
         TimeSheet.objects.filter(employee=self.employee)
+
+
 # }}}
 
 # {{{ Models Signals
