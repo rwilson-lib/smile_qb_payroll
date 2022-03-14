@@ -698,9 +698,6 @@ class Addition(models.Model):
         default_currency=get_default_currency(),
     )
 
-    def convert_currency(self):
-        pass
-
     class Meta:
         unique_together = ("payroll_employee", "item")
 
