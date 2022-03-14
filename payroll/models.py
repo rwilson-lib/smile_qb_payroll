@@ -1,3 +1,8 @@
+"""
+Manages employee payroll info.
+
+This Models handles deductions and addition.
+"""
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Count, Q, Sum
@@ -6,7 +11,9 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from djmoney.models.fields import CurrencyField, MoneyField
 from djmoney.money import Money
-from djmoney.settings import CURRENCY_CHOICES, DEFAULT_CURRENCY
+from djmoney.settings import CURRENCY_CHOICES
+
+# from djmoney.settings import CURRENCY_CHOICES, DEFAULT_CURRENCY
 
 from collections import namedtuple
 
@@ -14,40 +21,40 @@ from accounting.models import (
     Account,
     GeneralLedger,
     LineItem,
-    Transaction,
-    TransactionType,
+    # Transaction,
 )
 from employee.models import Employee, EmployeePosition, EmployeeAccount
 from payroll.income import Income, IncomeType, PayPeriod
 from tax.models import PayBy, Revision, TaxContribution
 from tax.tax_calc import calculate_tax
 
-from .queries import (
-    get_addition_group_by_addition,
-)
-
 
 def get_default_credit_account():
+    """Return default credit account."""
     item = 1
     return item
 
 
 def get_default_currency():
+    """Return default currency."""
     currency = "USD"
     return currency
 
 
 def get_default_secondary_currency():
+    """Return secondary default currency if dual currency."""
     currency = "LRD"
     return currency
 
 
 def get_local_currency():
+    """Return default local currency."""
     currency = "LRD"
     return currency
 
 
 def check_money(money_one, money_two):
+    """Check if money is of the same type."""
     if type(money_one) is Money and type(money_two) is Money:
         if money_one == money_two:
             return True
@@ -55,11 +62,13 @@ def check_money(money_one, money_two):
 
 
 def automatic_convertion_allow():
+    """Check if automatic convertion is allow."""
     return True
 
 
-# {{{ ExchangeRate
 class ExchangeRate(models.Model):
+    """Model for storing and managing User define exchange rate."""
+
     foreign = MoneyField(
         max_digits=14,
         decimal_places=2,
@@ -75,9 +84,7 @@ class ExchangeRate(models.Model):
     date = models.DateField(default=timezone.now)
 
     def exchange(self, money):
-        # Disable all the no-member violations in this function
-        # pylint: disable=no-member
-
+        """Try to convert currency."""
         if not type(money) is Money:
             raise ValueError("must be of the class Money")
 
@@ -91,16 +98,17 @@ class ExchangeRate(models.Model):
         raise ValueError("Operation not allowed")
 
     def __str__(self):
-        return f"{self.foreign.amount} {self.foreign_currency} -> {self.local.amount} {self.local_currency}"
-
-
-# }}}
-
-# {{{ Payroll
+        """Overide tostring."""
+        return f"{self.foreign.amount} {self.foreign_currency}\
+        -> {self.local.amount} {self.local_currency}"
 
 
 class Payroll(models.Model):
+    """Model for managing payroll master record."""
+
     class Status(models.IntegerChoices):
+        """Payroll stages enums."""
+
         CREATED = 0
         REVIEW = 1
         CLOSED = 2
@@ -113,7 +121,9 @@ class Payroll(models.Model):
         choices=PayPeriod.choices, default=PayPeriod.MONTHLY
     )
     date = models.DateField()
-    currency = CurrencyField(choices=CURRENCY_CHOICES, default=get_default_currency)
+    currency = CurrencyField(
+        choices=CURRENCY_CHOICES, default=get_default_currency
+    )
     tax_revision = models.ForeignKey(Revision, on_delete=models.CASCADE)
     fraction = models.DecimalField(
         max_digits=14, decimal_places=2, null=True, blank=True
@@ -121,7 +131,9 @@ class Payroll(models.Model):
     rate = models.ForeignKey(
         ExchangeRate, on_delete=models.CASCADE, null=True, blank=True
     )
-    status = models.IntegerField(choices=Status.choices, default=Status.CREATED)
+    status = models.IntegerField(
+        choices=Status.choices, default=Status.CREATED
+    )
     created_on = models.DateTimeField(auto_now_add=True)
     last_modified = models.DateTimeField(auto_now=True)
 
@@ -132,6 +144,7 @@ class Payroll(models.Model):
 
     @property
     def count_lines(self):
+        """Lazy line count."""
         if self.__lines is None:
             self.__get_lines()
 
@@ -139,14 +152,17 @@ class Payroll(models.Model):
 
     @property
     def total_salary(self):
+        """Calculate total salary on payroll."""
         if self.__lines is None:
             self.__get_lines()
         return Money(
-            self.__lines.aggregate(earnings=Sum("earnings"))["earnings"], self.currency
+            self.__lines.aggregate(earnings=Sum("earnings"))["earnings"],
+            self.currency,
         )
 
     @property
     def total_gross(self):
+        """Calculate total gross income on payroll."""
         if self.__lines is None:
             self.__get_lines()
 
@@ -159,32 +175,46 @@ class Payroll(models.Model):
 
     @property
     def total_credit_deduction(self):
-        deductions = PayrollDeduction.objects.filter(payroll_employee__payroll=self.id)
+        """Calculate total credit deducted."""
+        deductions = PayrollDeduction.objects.filter(
+            payroll_employee__payroll=self.id
+        )
         return Money(
-            deductions.aggregate(deduction=Sum("amount"))["deduction"], self.currency
+            deductions.aggregate(deduction=Sum("amount"))["deduction"],
+            self.currency,
         )
 
     @property
     def total_addition(self):
+        """Calculate the total addition on salary."""
         addition = Addition.objects.filter(payroll_employee__payroll=self.id)
         return Money(
-            addition.aggregate(addition=Sum("amount"))["addition"], self.currency
+            addition.aggregate(addition=Sum("amount"))["addition"],
+            self.currency,
         )
 
     @property
     def total_taxes(self):
+        """Calculate the total taxes."""
         taxes = TaxContributionCollector.objects.filter(
             payroll_employee__payroll=self.id
         )
-        return Money(taxes.aggregate(total=Sum("amount"))["total"], self.currency)
+        return Money(
+            taxes.aggregate(total=Sum("amount"))["total"], self.currency
+        )
 
     @classmethod
     def pre_create(cls, sender, instance, *args, **kwargs):
-        transaction = Transaction(comment="")
+        """Call before a record is save."""
+        # transaction = Transaction(comment="")
+        pass
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
-        if instance.status in range(instance.Status.REVIEW, instance.Status.CLOSED):
+        """Call after a record is create or updated."""
+        if instance.status in range(
+            instance.Status.REVIEW, instance.Status.CLOSED
+        ):
             taxes = TaxContributionCollector.objects.filter(
                 payroll_employee__payroll=instance
             )
@@ -226,7 +256,9 @@ class Payroll(models.Model):
             for item in instance.__lines:
                 account = (
                     EmployeeAccount.objects.filter(
-                        employee=item.employee.employee, current=True, active=True
+                        employee=item.employee.employee,
+                        current=True,
+                        active=True,
                     )
                     or None
                 )
@@ -248,15 +280,13 @@ class Payroll(models.Model):
             # GeneralLedger.objects.bulk_create(ledger)
 
     def __str__(self):
+        """Overide tostring."""
         return f'{self.date.strftime("%b %d %Y")}'
 
 
-# }}}
-
-# {{{ Credit
-
-
 class Credit(models.Model):
+    """Model for storing and managing employee Credit."""
+
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE)
     item = models.CharField(max_length=100)
     amount = MoneyField(
@@ -278,6 +308,7 @@ class Credit(models.Model):
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
+        """Call after a record is create or updated."""
         if not created:
             status = instance.is_completed
             if status != instance.completed:
@@ -285,6 +316,7 @@ class Credit(models.Model):
 
     @property
     def is_completed(self):
+        """Check if a payment on a plan have been completed."""
         balance = self.balance
         if balance > Money(0.00, balance.currency):
             return False
@@ -292,6 +324,7 @@ class Credit(models.Model):
 
     @property
     def total_deduction(self):
+        """Return the total amount deductions."""
         deduction_plans = self.creditpaymentplan_set.all()
         total_paid = Money(0.00, self.amount_currency)
         for deduction_plan in deduction_plans:
@@ -301,6 +334,7 @@ class Credit(models.Model):
 
     @property
     def balance(self):
+        """Calculate the balance due."""
         total_paid = self.total_deduction
         debt = self.amount
         interest = self.interest
@@ -311,8 +345,7 @@ class Credit(models.Model):
 
     @property
     def interest(self):
-        # Disable all the no-member violations in this function
-        # pylint: disable=no-member
+        """Calculate the interest rate."""
         money = Money(0.00, self.amount.currency)
         if not self.interest_rate:
             return money
@@ -320,31 +353,36 @@ class Credit(models.Model):
         return money
 
     class Meta:
+        """Meta class attributes."""
+
         ordering = ["-date"]
 
     def clean(self):
+        """Validate form data."""
         errors = {}
 
         if self.date > timezone.now().date():
             errors["date"] = _("date cannot be set to the future")
 
         if self.payment_start_date < timezone.now().date():
-            errors["payment_start_date"] = _("payment cannot begin in the pass")
+            errors["payment_start_date"] = _(
+                "payment cannot begin in the pass"
+            )
 
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.employee} {self.item} {self.amount} {self.date}"
 
 
-# }}}
-
-# {{{ CreditPaymentPlan
-
-
 class CreditPaymentPlan(models.Model):
+    """Model for storing and managing payment plan."""
+
     class Status(models.IntegerChoices):
+        """Credit Payment Plan Status Enum."""
+
         CANCEL = 0
         ACTIVE = 1
         PAUSED = 2
@@ -360,6 +398,7 @@ class CreditPaymentPlan(models.Model):
     status = models.IntegerField(choices=Status.choices, default=Status.ACTIVE)
 
     def deduct(self):
+        """Deduct the value speficed by a payment plan."""
         default = Money("0.00", self.credit.amount_currency)
         if self.credit.completed:
             return default
@@ -374,19 +413,21 @@ class CreditPaymentPlan(models.Model):
 
     @property
     def total_paid_on_plan(self):
-        total = self.payrolldeduction_set.aggregate(sum=Sum("amount"))["sum"] or 0.00
+        """Calculate the total paid on a payment plan."""
+        total = (
+            self.payrolldeduction_set.aggregate(sum=Sum("amount"))["sum"]
+            or 0.00
+        )
         return Money(total, get_default_currency())
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.name}, {self.credit}, {self.percent}"
 
 
-# }}}
-
-# {{{ PayrollEmployee
-
-
 class PayrollEmployee(models.Model):
+    """Model holds Payroll line item."""
+
     payroll = models.ForeignKey(Payroll, on_delete=models.CASCADE)
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     hour_worked = models.PositiveIntegerField(blank=True, null=True)
@@ -449,7 +490,9 @@ class PayrollEmployee(models.Model):
 
     def _calc_taxes(self):
         employee_current_position = self.employee
-        queryset = TaxContribution.objects.filter(active=True, mandatory=True).union(
+        queryset = TaxContribution.objects.filter(
+            active=True, mandatory=True
+        ).union(
             TaxContribution.objects.filter(
                 employeetaxcontribution__employee=employee_current_position,
                 employeetaxcontribution__active=True,
@@ -457,14 +500,17 @@ class PayrollEmployee(models.Model):
         )
 
         collection = namedtuple(
-            "TaxCollection", ["collection", "total_by_employee", "total_by_employer"]
+            "TaxCollection",
+            ["collection", "total_by_employee", "total_by_employer"],
         )
         collection.collection = []
         collection.total_by_employee = Income(
-            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+            PayPeriod(self.payroll.pay_period),
+            Money(0.00, self.payroll.currency),
         )
         collection.total_by_employer = Income(
-            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+            PayPeriod(self.payroll.pay_period),
+            Money(0.00, self.payroll.currency),
         )
 
         for emp_tax_n_contrib in queryset:
@@ -475,12 +521,18 @@ class PayrollEmployee(models.Model):
                 tax = calculate_tax(
                     emp_tax_n_contrib, self._try_convert_currency(income)
                 )
-                tax = self._try_convert_currency(tax.convert_to(income.pay_period))
+                tax = self._try_convert_currency(
+                    tax.convert_to(income.pay_period)
+                )
 
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
-                    collection.total_by_employee = collection.total_by_employee + tax
+                    collection.total_by_employee = (
+                        collection.total_by_employee + tax
+                    )
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
-                    collection.total_by_employer = collection.total_by_employer + tax
+                    collection.total_by_employer = (
+                        collection.total_by_employer + tax
+                    )
 
                 collection.collection.append(
                     TaxContributionCollector(
@@ -495,9 +547,13 @@ class PayrollEmployee(models.Model):
                 tax = tax.convert_to(income.pay_period)
 
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYEE:
-                    collection.total_by_employee = collection.total_by_employee + tax
+                    collection.total_by_employee = (
+                        collection.total_by_employee + tax
+                    )
                 if emp_tax_n_contrib.pay_by == PayBy.EMPLOYER:
-                    collection.total_by_employer = collection.total_by_employer + tax
+                    collection.total_by_employer = (
+                        collection.total_by_employer + tax
+                    )
 
                 collection.collection.append(
                     TaxContributionCollector(
@@ -516,10 +572,13 @@ class PayrollEmployee(models.Model):
             & Q(status=CreditPaymentPlan.Status.ACTIVE)
         )
 
-        collection = namedtuple("PayrollDeductionCollection", ["collection", "total"])
+        collection = namedtuple(
+            "PayrollDeductionCollection", ["collection", "total"]
+        )
         collection.collection = []
         collection.total = Income(
-            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+            PayPeriod(self.payroll.pay_period),
+            Money(0.00, self.payroll.currency),
         )
 
         for item in queryset:
@@ -530,8 +589,8 @@ class PayrollEmployee(models.Model):
                         raise TypeError(
                             "currency dont match and auto convert is not allow"
                         )
-                    collection.total = collection.total + self._try_convert_currency(
-                        income
+                    collection.total = (
+                        collection.total + self._try_convert_currency(income)
                     )
                     collection.collection.append(
                         PayrollDeduction(
@@ -544,7 +603,9 @@ class PayrollEmployee(models.Model):
                 collection.total = collection.total + income
                 collection.collection.append(
                     PayrollDeduction(
-                        payroll_employee=self, payment_plan=item, amount=income.money
+                        payroll_employee=self,
+                        payment_plan=item,
+                        amount=income.money,
                     )
                 )
         return collection
@@ -565,7 +626,9 @@ class PayrollEmployee(models.Model):
 
         if not self.payroll.rate.foreign_currency == str(
             income.money.currency
-        ) and not self.payroll.rate.local_currency == str(income.money.currency):
+        ) and not self.payroll.rate.local_currency == str(
+            income.money.currency
+        ):
             raise TypeError("rate can not be use for convertion")
 
         income.money = self.payroll.rate.exchange(income.money)
@@ -574,11 +637,16 @@ class PayrollEmployee(models.Model):
     def _earnings(self, faction=None):
         income = None
 
-        if self.employee.position.wage_type == self.employee.position.WageType.SALARIED:
+        if (
+            self.employee.position.wage_type
+            == self.employee.position.WageType.SALARIED
+        ):
             income = self.employee.total_earnings
             if income.money.currency.code != self.payroll.currency:
                 if not automatic_convertion_allow():
-                    raise TypeError("currency dont match and auto convert is not allow")
+                    raise TypeError(
+                        "currency dont match and auto convert is not allow"
+                    )
                 income = self._try_convert_currency(
                     income.convert_to(PayPeriod(self.payroll.pay_period))
                 )
@@ -586,11 +654,13 @@ class PayrollEmployee(models.Model):
                 income = income.convert_to(PayPeriod(self.payroll.pay_period))
 
         elif (
-            self.employee.position.wage_type == self.employee.position.WageType.PER_RATE
+            self.employee.position.wage_type
+            == self.employee.position.WageType.PER_RATE
         ):
             if self.hour_worked is None:
                 raise TypeError(
-                    "can't perform calculation for {self.employee.position.wage_type}"
+                    "can't perform calculation for\
+                    {self.employee.position.wage_type}"
                 )
             income = self.employee.negotiated_salary_wage * self.hour_worked
             Income(PayPeriod(self.employee.pay_period), income)
@@ -607,7 +677,8 @@ class PayrollEmployee(models.Model):
         )
         earings = self._earnings()
         extra_income = Income(
-            PayPeriod(self.payroll.pay_period), Money(0.00, self.payroll.currency)
+            PayPeriod(self.payroll.pay_period),
+            Money(0.00, self.payroll.currency),
         )
 
         for item in queryset:
@@ -621,7 +692,9 @@ class PayrollEmployee(models.Model):
                         raise TypeError(
                             "currency dont match and auto convert is not allow"
                         )
-                    extra_income = extra_income + self._try_convert_currency(income)
+                    extra_income = extra_income + self._try_convert_currency(
+                        income
+                    )
             else:
                 extra_income = extra_income + income
 
@@ -642,6 +715,7 @@ class PayrollEmployee(models.Model):
         return net
 
     def update_calc_props(self):
+        """Update calculate props at runtime."""
         self.earnings = self._earnings().money
         self.net_income = self._net_income().money
         self.gross_income = self._gross_income().money
@@ -653,6 +727,7 @@ class PayrollEmployee(models.Model):
 
     @classmethod
     def pre_create(cls, sender, instance, *args, **kwargs):
+        """Call before a record is created."""
         instance.earnings = instance._earnings().money
         instance.net_income = instance._net_income().money
         instance.gross_income = instance._gross_income().money
@@ -662,9 +737,11 @@ class PayrollEmployee(models.Model):
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
+        """Call after a record is created or updated."""
         pass
 
     def clean(self):
+        """Validate form data."""
         errors = {}
 
         if self.payroll.status > Payroll.Status.REVIEW:
@@ -672,24 +749,28 @@ class PayrollEmployee(models.Model):
                 f"cant add to a {self.payroll.get_status_display()} payroll"
             )
         if not self.employee.employee.active:
-            errors["employee"] = _(f"can't add an inactive employee to payroll")
+            errors["employee"] = _("can't add an inactive employee to payroll")
 
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.payroll} {self.employee}"
 
     class Meta:
+        """Meta class attributes."""
+
         unique_together = ("payroll", "employee")
         ordering = ["-payroll"]
 
 
-# }}}
-
-# {{{ Addition
 class Addition(models.Model):
-    payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
+    """Model for managing additional entry to payroll."""
+
+    payroll_employee = models.ForeignKey(
+        PayrollEmployee, on_delete=models.CASCADE
+    )
     item = models.ForeignKey(LineItem, on_delete=models.CASCADE)
     amount = MoneyField(
         max_digits=14,
@@ -699,44 +780,52 @@ class Addition(models.Model):
     )
 
     class Meta:
+        """Meta class attributes."""
+
         unique_together = ("payroll_employee", "item")
 
     @classmethod
     def post_create_or_update(cls, sender, instance, *args, **kwargs):
+        """Call after a record is create or updated."""
         instance.payroll_employee.update_calc_props()
 
     @classmethod
     def post_delete(cls, sender, instance, *args, **kwargs):
+        """Call after a record is deleted."""
         instance.payroll_employee.update_calc_props()
 
     def clean(self):
-
+        """Validate form data."""
         errors = {}
         if self.payroll_employee.payroll.currency != self.amount_currency:
             errors["amount"] = _(
-                f" Item currency {self.amount.currency} does not match payroll currency {self.payroll_employee.payroll.currency }"
+                f" Item currency {self.amount.currency} does not match payroll\
+                currency {self.payroll_employee.payroll.currency }"
             )
 
         if self.payroll_employee.payroll.status > Payroll.Status.REVIEW:
             errors["payroll_employee"] = _(
-                f"cant add to a {self.payroll_employee.payroll.get_status_display()} payroll"
+                f"cant add to a {self.payroll_employee.payroll.get_status_display()}\
+                payroll"
             )
 
         if errors:
             raise ValidationError(errors)
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.payroll_employee} {self.item} {self.amount}"
 
 
-# }}}
-
-# {{{ PayrollDeduction
-
-
 class PayrollDeduction(models.Model):
-    payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
-    payment_plan = models.ForeignKey(CreditPaymentPlan, on_delete=models.CASCADE)
+    """Model for managing payroll deduction record."""
+
+    payroll_employee = models.ForeignKey(
+        PayrollEmployee, on_delete=models.CASCADE
+    )
+    payment_plan = models.ForeignKey(
+        CreditPaymentPlan, on_delete=models.CASCADE
+    )
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
@@ -745,9 +834,12 @@ class PayrollDeduction(models.Model):
     )
 
     class Meta:
+        """Meta class attributes."""
+
         unique_together = ("payroll_employee", "payment_plan")
 
     def mark_as_completed(self):
+        """Mark the deductable as completed when the balance is zero."""
         if self.payment_plan.credit.is_completed is True:
             self.payment_plan.credit.completed = True
             self.payment_plan.status = CreditPaymentPlan.Status.COMPLETED
@@ -761,15 +853,16 @@ class PayrollDeduction(models.Model):
 
     @classmethod
     def post_create_or_update(cls, sender, instance, created, *args, **kwargs):
+        """Call after a record is create or updated."""
         instance.mark_as_completed()
 
     @classmethod
     def post_delete(cls, sender, instance, *args, **kwargs):
+        """Call after the record is deleted."""
         instance.mark_as_completed()
 
     def clean(self):
-        # Disable all the no-member violations in this function
-        # pylint: disable=no-member
+        """Validate form data."""
         errors = {}
 
         payroll_emp_id = self.payroll_employee.employee.employee.id
@@ -788,15 +881,13 @@ class PayrollDeduction(models.Model):
             raise ValidationError(errors)
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.payroll_employee} {self.payment_plan} {self.amount}"
 
 
-# }}}
-
-# {{{ EmployeeTaxContribution
-
-
 class EmployeeTaxContribution(models.Model):
+    """Model for holding employee Tax and Contribution."""
+
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     tax = models.ForeignKey(
         TaxContribution,
@@ -806,11 +897,12 @@ class EmployeeTaxContribution(models.Model):
     active = models.BooleanField(default=True)
 
     class Meta:
+        """Meta class attributes."""
+
         unique_together = ("employee", "tax")
 
     def clean(self):
-        # Disable all the no-member violations in this function
-        # pylint: disable=no-member
+        """Validate form data."""
         errors = {}
 
         if self.tax.mandatory:
@@ -820,15 +912,18 @@ class EmployeeTaxContribution(models.Model):
             raise ValidationError(errors)
 
     def __str__(self):
+        """Overide tostring."""
+        TaxContribution
         return f"{self.employee} {self.tax}"
 
 
-# }}}
-
-# {{{ TaxContributionCollector
 class TaxContributionCollector(models.Model):
+    """Model for storing and managing Tax and Contribution collection."""
+
     contribution = models.ForeignKey(TaxContribution, on_delete=models.CASCADE)
-    payroll_employee = models.ForeignKey(PayrollEmployee, on_delete=models.CASCADE)
+    payroll_employee = models.ForeignKey(
+        PayrollEmployee, on_delete=models.CASCADE
+    )
     amount = MoneyField(
         max_digits=14,
         decimal_places=2,
@@ -837,13 +932,13 @@ class TaxContributionCollector(models.Model):
     )
 
     def __str__(self):
+        """Overide tostring."""
         return f"{self.contribution}, {self.amount}"
 
 
-# }}}
-
-# {{{ TimeSheet
 class TimeSheet(models.Model):
+    """Collect and store employee timesheet information."""
+
     employee = models.ForeignKey(EmployeePosition, on_delete=models.CASCADE)
     date = models.DateField()
     clock_start_time = models.TimeField()
@@ -852,25 +947,24 @@ class TimeSheet(models.Model):
     break_end_time = models.TimeField()
 
     def employee_total_hours(self, employee_id):
+        """Calculate employee total hour work."""
         TimeSheet.objects.filter(employee=self.employee)
 
-
-# }}}
-
-# {{{ Models Signals
 
 pre_save.connect(Payroll.pre_create, sender=Payroll)
 post_save.connect(Payroll.post_create_or_update, sender=Payroll)
 
 pre_save.connect(PayrollEmployee.pre_create, sender=PayrollEmployee)
-post_save.connect(PayrollEmployee.post_create_or_update, sender=PayrollEmployee)
+post_save.connect(
+    PayrollEmployee.post_create_or_update, sender=PayrollEmployee
+)
 
 post_save.connect(Addition.post_create_or_update, sender=Addition)
 post_delete.connect(Addition.post_delete, sender=Addition)
 
-post_save.connect(PayrollDeduction.post_create_or_update, sender=PayrollDeduction)
+post_save.connect(
+    PayrollDeduction.post_create_or_update, sender=PayrollDeduction
+)
 post_delete.connect(PayrollDeduction.post_delete, sender=PayrollDeduction)
 
 post_save.connect(Credit.post_create_or_update, sender=Credit)
-
-# }}}
