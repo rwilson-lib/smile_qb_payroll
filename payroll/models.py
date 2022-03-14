@@ -592,7 +592,7 @@ class PayrollEmployee(models.Model):
                 raise TypeError(
                     "can't perform calculation for {self.employee.position.wage_type}"
                 )
-            income = self.employee.negotiated_salary_wage * hour_worked
+            income = self.employee.negotiated_salary_wage * self.hour_worked
             Income(PayPeriod(self.employee.pay_period), income)
 
         if self.payroll.fraction:
